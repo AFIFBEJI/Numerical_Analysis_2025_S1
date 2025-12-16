@@ -11,7 +11,7 @@ This repository contains a project designed to enhance the pedagogical approach 
 **Project ID:** R&D NA N°1
 
 ### Supervisor:
-    Afif Beji, Ing., M.Sc.
+    Afif Beji, Eng, MSc
     - Role: Assistant Professor and Project Supervisor 
     - Institution: ESPRIT, School of Engineers
 
