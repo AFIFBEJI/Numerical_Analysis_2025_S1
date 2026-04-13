@@ -1,4 +1,4 @@
-# <div align="center"><h1 style="color: red;">Numerical_Analysis_2025_S1</h1></div>
+# <div align="center"><h1 style="color: red;">Numerical_Analysis_2526</h1></div>
 
 # Development of an Interactive Web Platform for Teaching and Visualizing Numerical Analysis Concepts
 
@@ -17,7 +17,10 @@ This repository contains a project designed to enhance the pedagogical approach 
 
 ### Interns:
     * Wassim Lazzez
-    - Role: Student
+    * Chiraz Bouslimi
+    * Mohamed Yassine Ferjani
+    * Houssem Eddine Said
+    - Role: Students
     - Institution: ESPRIT, School of Engineers
 
 ---
