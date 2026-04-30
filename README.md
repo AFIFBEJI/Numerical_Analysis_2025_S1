@@ -20,6 +20,7 @@ This repository contains a project designed to enhance the pedagogical approach 
     * Chiraz Bouslimi
     * Mohamed Yassine Ferjani
     * Houssem Eddine Said
+    * Mohamed Amine Ben Abdeljlil
     - Role: Students
     - Institution: ESPRIT, School of Engineers
 
