@@ -1,6 +1,3 @@
-// ─────────────────────────────────────────────
-// HELPERS
-// ─────────────────────────────────────────────
 function K(tex, block){
   try{ return katex.renderToString(tex,{throwOnError:false,displayMode:!!block}); }
   catch(e){ return tex; }
@@ -135,10 +132,10 @@ function polyLatexOrd(pts,t,ord){
   }
   return s;
 }
-
-// screen router
 let _vizInit=false;
 let _expTimer=null;
+let _pvpCountdownInt=null;
+let _pvpPollInt=null;
 function go(id){
   document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
   document.getElementById('screen-'+id).classList.add('active');
@@ -150,18 +147,195 @@ function go(id){
   if(id==='advanced') expInit();
   if(id==='viz'){if(!_vizInit){_vizInit=true;vizInit();} else vizRender();}
   if(id==='challenge') chReset();
-  if(id==='menu'){ clearInterval(_advTimer); clearInterval(_chTimer); clearInterval(_expTimer); }
+  if(id==='pvp') pvpInit();
+  if(id==='menu'){ clearInterval(_advTimer); clearInterval(_chTimer); clearInterval(_expTimer); clearInterval(_pvpPollInt); }
 }
-
-// feedback helper
+let SB_URL='';
+let SB_ANON='';
+let sb=null;
+const PVP={room:null,players:[],player:null,chan:null,countdown:null};
+async function loadEnvFile(){
+  try{
+    const res=await fetch('./.env',{cache:'no-store'});
+    if(!res.ok) return false;
+    const txt=await res.text();
+    const lines=txt.split(/\r?\n/);
+    for(const ln of lines){
+      const row=ln.trim();
+      if(!row||row.startsWith('#')) continue;
+      const eq=row.indexOf('=');
+      if(eq<1) continue;
+      const k=row.slice(0,eq).trim();
+      const v=row.slice(eq+1).trim();
+      if(k==='SUPABASE_URL') SB_URL=v;
+      if(k==='SUPABASE_ANON_KEY') SB_ANON=v;
+    }
+    return true;
+  }catch(e){ return false; }
+}
+async function ensureSupabase(){
+  if(sb) return true;
+  if(!SB_URL||!SB_ANON) await loadEnvFile();
+  if(window.supabase&&SB_URL.startsWith('http')&&SB_ANON){
+    sb=window.supabase.createClient(SB_URL,SB_ANON);
+    return true;
+  }
+  return false;
+}
+function pvpClientId(){
+  let id=localStorage.getItem('ni-pvp-client-id');
+  if(!id){ id=(crypto?.randomUUID?.()||String(Date.now())+Math.random().toString(16).slice(2)); localStorage.setItem('ni-pvp-client-id',id); }
+  return id;
+}
+function pvpCode(){ const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let o=''; for(let i=0;i<6;i++) o+=s[rnd(0,s.length-1)]; return o; }
+async function pvpRequire(){
+  if(await ensureSupabase()) return true;
+  showFB('pvp-fb','Missing Supabase config (.env).','err');
+  return false;
+}
+function pvpInit(){ /* screen hook */ }
+function pvpShowLobby(show){
+  const a=document.getElementById('pvp-start'), b=document.getElementById('pvp-lobby');
+  if(a) a.style.display=show?'none':'block';
+  if(b) b.style.display=show?'block':'none';
+  if(show){
+    clearInterval(_pvpPollInt);
+    _pvpPollInt=setInterval(()=>{ if(PVP.room) pvpRefresh(); },1000);
+  } else clearInterval(_pvpPollInt);
+}
+async function pvpCreateRoom(){
+  if(!(await pvpRequire())) return;
+  const name=(document.getElementById('pvp-name')?.value||'Player').trim().slice(0,20)||'Player';
+  let code=pvpCode();
+  for(let i=0;i<5;i++){
+    const {data:exists}=await sb.from('rooms').select('id').eq('code',code).maybeSingle();
+    if(!exists) break;
+    code=pvpCode();
+  }
+  const {data:room,error:e1}=await sb.from('rooms').insert({code,status:'waiting'}).select('*').single();
+  if(e1){ showFB('pvp-fb','Failed to create room.','err'); return; }
+  const {data:pl,error:e2}=await sb.from('players').insert({room_id:room.id,slot:'p1',name,client_id:pvpClientId(),ready:false,hearts:3,finished:false,lost:false}).select('*').single();
+  if(e2){ showFB('pvp-fb','Failed to create player.','err'); return; }
+  PVP.room=room; PVP.player=pl; pvpShowLobby(true); pvpSubscribe(room.id); await pvpRefresh();
+}
+async function pvpJoinRoom(){
+  if(!(await pvpRequire())) return;
+  const code=(document.getElementById('pvp-code')?.value||'').trim().toUpperCase();
+  if(!code){ showFB('pvp-fb','Type room code.','err'); return; }
+  const name=(document.getElementById('pvp-name')?.value||'Player').trim().slice(0,20)||'Player';
+  const {data:room}=await sb.from('rooms').select('*').eq('code',code).maybeSingle();
+  if(!room){ showFB('pvp-fb','Room not found.','err'); return; }
+  let {data:pl}=await sb.from('players').select('*').eq('room_id',room.id).eq('client_id',pvpClientId()).maybeSingle();
+  if(!pl){
+    const {data:list}=await sb.from('players').select('*').eq('room_id',room.id);
+    if((list||[]).length>=2){ showFB('pvp-fb','Room is full.','err'); return; }
+    const slot=(list||[]).some(p=>p.slot==='p1')?'p2':'p1';
+    const ins=await sb.from('players').insert({room_id:room.id,slot,name,client_id:pvpClientId(),ready:false,hearts:3,finished:false,lost:false}).select('*').single();
+    if(ins.error){ showFB('pvp-fb','Join failed.','err'); return; }
+    pl=ins.data;
+  }
+  PVP.room=room; PVP.player=pl; pvpShowLobby(true); pvpSubscribe(room.id); await pvpRefresh();
+}
+async function pvpLeaveRoom(){
+  if(!sb||!PVP.room||!PVP.player) return go('menu');
+  await sb.from('players').delete().eq('id',PVP.player.id);
+  if(PVP.chan){ await sb.removeChannel(PVP.chan); PVP.chan=null; }
+  clearInterval(_pvpPollInt);
+  PVP.room=null; PVP.player=null; PVP.players=[]; pvpShowLobby(false); go('menu');
+}
+async function pvpToggleReady(){
+  if(!sb||!PVP.player||!PVP.room) return;
+  const upd=await sb.from('players').update({ready:!PVP.player.ready}).eq('id',PVP.player.id);
+  if(upd.error){ showFB('pvp-fb',`Ready failed: ${upd.error.message}`,'err'); return; }
+  await pvpRefresh();
+}
+function pvpSubscribe(roomId){
+  if(!sb) return;
+  if(PVP.chan) sb.removeChannel(PVP.chan);
+  PVP.chan=sb.channel(`room-${roomId}`)
+    .on('postgres_changes',{event:'*',schema:'public',table:'rooms',filter:`id=eq.${roomId}`},()=>pvpRefresh())
+    .on('postgres_changes',{event:'*',schema:'public',table:'players',filter:`room_id=eq.${roomId}`},()=>pvpRefresh())
+    .subscribe();
+}
+async function pvpRefresh(){
+  if(!sb||!PVP.room) return;
+  const {data:room,error:rErr}=await sb.from('rooms').select('*').eq('id',PVP.room.id).maybeSingle();
+  const {data:players,error:pErr}=await sb.from('players').select('*').eq('room_id',PVP.room.id);
+  if(rErr||pErr){ showFB('pvp-fb',`Sync failed: ${(rErr||pErr).message}`,'err'); return; }
+  if(!room) return;
+  PVP.room=room; PVP.players=players||[];
+  PVP.player=PVP.players.find(p=>p.client_id===pvpClientId())||PVP.player;
+  const codeEl=document.getElementById('pvp-room-code');
+  const listEl=document.getElementById('pvp-players');
+  const cdEl=document.getElementById('pvp-countdown');
+  if(codeEl) codeEl.textContent=`Code: ${room.code}`;
+  if(listEl) listEl.textContent=(PVP.players||[]).map(p=>`${p.slot.toUpperCase()} ${p.name||'Player'} ${p.ready?'[READY]':'[NOT READY]'}`).join(' | ');
+  const readyBtn=document.getElementById('pvp-ready-btn');
+  if(readyBtn&&PVP.player) readyBtn.textContent=PVP.player.ready?'Unready':'Ready';
+  const both=(PVP.players||[]).length===2&&(PVP.players||[]).every(p=>p.ready);
+  if(both&&room.status==='waiting'){
+    const pts=genPoints(4);
+    const up=await sb.from('rooms').update({status:'countdown',countdown_started_at:new Date().toISOString(),points_json:JSON.stringify(pts),winner_player:null}).eq('id',room.id);
+    if(up.error){ showFB('pvp-fb',`Start failed: ${up.error.message}`,'err'); }
+    return;
+  }
+  if(room.status==='countdown'){
+    clearInterval(_pvpCountdownInt);
+    _pvpCountdownInt=setInterval(async ()=>{
+      const left=Math.max(0,3-Math.floor((Date.now()-new Date(room.countdown_started_at).getTime())/1000));
+      if(cdEl) cdEl.textContent=left>0?`Starting in ${left}...`:'GO!';
+      if(left<=0){
+        clearInterval(_pvpCountdownInt);
+        if(room.status==='countdown'){
+          const up=await sb.from('rooms').update({status:'running'}).eq('id',room.id);
+          if(up.error) showFB('pvp-fb',`Run failed: ${up.error.message}`,'err');
+        }
+      }
+    },150);
+  }
+  if(room.status==='running'){ pvpStartLocalGame(room); }
+  if(room.status==='finished'){
+    if(cdEl) cdEl.textContent=room.winner_player?`Winner: ${room.winner_player.toUpperCase()}`:'Match finished';
+    if(CH.isPvp && !CH.pvpDone){
+      CH.pvpDone=true;
+      const mine=(PVP.player?.slot||'p1');
+      const won=room.winner_player===mine;
+      showResult({emoji:'',title:won?'You Win!':'You Lose',sub:won?'Finished first.':'Opponent finished first.',
+        ok:CH.ok,err:CH.err,time:'—',score:'—',
+        btns:[{lbl:'Back to Menu',fn:'go("menu");hideResult()'}]
+      });
+    }
+  }
+}
+function pvpStartLocalGame(room){
+  if(CH.isPvp && CH.pvpRoomId===room.id) return;
+  let pts=[];
+  try{ pts=JSON.parse(room.points_json||'[]'); }catch(e){ pts=[]; }
+  if(!pts.length) pts=genPoints(4);
+  go('challenge');
+  const startEl=document.getElementById('ch-start-area');
+  const gameEl=document.getElementById('ch-game');
+  if(startEl) startEl.style.display='none';
+  if(gameEl) gameEl.style.display='block';
+  chNewRound({forcedPts:pts,total:999999,noTimer:true,isPvp:true,pvpRoomId:room.id,pvpSlot:PVP.player?.slot||'p1',pvpDone:false});
+}
+async function pvpReportLoss(){
+  if(!sb||!PVP.player||!PVP.room) return;
+  await sb.from('players').update({lost:true,hearts:0}).eq('id',PVP.player.id);
+  const opp=PVP.player.slot==='p1'?'p2':'p1';
+  await sb.from('rooms').update({status:'finished',winner_player:opp}).eq('id',PVP.room.id).is('winner_player',null);
+}
+async function pvpReportFinish(){
+  if(!sb||!PVP.player||!PVP.room) return;
+  await sb.from('players').update({finished:true,finish_at:new Date().toISOString()}).eq('id',PVP.player.id);
+  await sb.from('rooms').update({status:'finished',winner_player:PVP.player.slot}).eq('id',PVP.room.id).is('winner_player',null);
+}
 function showFB(id,msg,type){
   const el=document.getElementById(id);
   if(!el) return;
   el.textContent=msg; el.className=`fb show fb-${type}`;
   clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),2200);
 }
-
-// result overlay
 function showResult({emoji,title,sub,ok,err,time,score,btns}){
   document.getElementById('res-emoji').textContent=emoji;
   document.getElementById('res-title').textContent=title;
@@ -181,8 +355,6 @@ function scoreFlash(txt,pos){
   document.body.appendChild(el); setTimeout(()=>el.remove(),850);
 }
 function doShake(id){ const el=document.getElementById(id); if(!el) return; el.classList.add('shake'); setTimeout(()=>el.classList.remove('shake'),400); }
-
-// explainer screen (replaces advanced levels)
 const EXP_DATA={
   theory:[
     {title:'What interpolation really means',body:'Interpolation is not guessing blindly; it is a structured reconstruction of a function from known samples. In Newton interpolation, we assume the data points are trustworthy and we build a polynomial that passes exactly through all of them, not approximately. This is useful when you need values between measured points and want a method that is mathematically consistent. The most important student intuition is this: each point constrains the curve, and the final polynomial is simply the smoothest algebraic object that satisfies all those constraints simultaneously.'},
@@ -354,10 +526,6 @@ function expRender(){
   `).join('');
   b.innerHTML=`<div class="exp-grid">${rows}</div>`;
 }
-
-// ─────────────────────────────────────────────
-// TUTORIAL STEPS
-// ─────────────────────────────────────────────
 const STEPS=[
 {title:'What You Need To Know',html:`
 <p><span class="highlight">Goal:</span> build one polynomial that passes through all given points.</p>
@@ -406,10 +574,6 @@ function tutRender(){
   const nx=document.getElementById('tut-next');
   nx.textContent=tutStep===STEPS.length-1?'▶ Start Game':'Next →';
 }
-
-// ─────────────────────────────────────────────
-// TUTORIAL GAME
-// ─────────────────────────────────────────────
 let TG={};
 function tgInit(){ tgNewRound(); }
 function tgShuffle(arr){
@@ -801,10 +965,6 @@ function tgPolyRender(){
   }
   el.innerHTML=K(tex,false);
 }
-
-// ─────────────────────────────────────────────
-// ADVANCED GAME
-// ─────────────────────────────────────────────
 let advLevel=1, _advTimer=null, ADV={};
 function pickLv(l){
   advLevel=l;
@@ -1002,10 +1162,6 @@ function advRoundDone(){
     btns:[{lbl:'Next Round',fn:'advNewRound(false);hideResult()'},{lbl:'Back to Levels',fn:'advReset();hideResult()'}]
   });
 }
-
-// ─────────────────────────────────────────────
-// VISUALIZATION LAB
-// ─────────────────────────────────────────────
 let VIZ_PTS=[], _chart=null, VIZ_ORD=0;
 function vizInit(){
   VIZ_PTS=[{x:-2,y:3},{x:0,y:-1},{x:1,y:2},{x:3,y:5}];
@@ -1025,7 +1181,6 @@ function vizInit(){
 }
 function vizRender(){
   const pts=[...VIZ_PTS].sort((a,b)=>a.x-b.x);
-  // point list
   document.getElementById('viz-list').innerHTML=VIZ_PTS.length?VIZ_PTS.map((p,i)=>`<div class="point-row"><div class="point-coord">(${fmt(p.x)}, ${fmt(p.y)})</div><button class="btn-rm" onclick="vizDel(${i})">x</button></div>`).join(''):'<div style="color:var(--text3);font-family:var(--mono);font-size:.78rem;">No points yet.</div>';
 
   if(pts.length<1){
@@ -1045,8 +1200,6 @@ function vizRender(){
   document.getElementById('viz-ord-label').textContent=`Order: ORD${VIZ_ORD} / ORD${ordMax}`;
   document.getElementById('viz-prev').disabled=(VIZ_ORD<=0);
   document.getElementById('viz-next').disabled=(VIZ_ORD>=ordMax);
-
-  // curve
   const xs=pts.map(p=>p.x);
   const ys=pts.map(p=>p.y);
   const xMin=Math.min(...xs)-1.5, xMax=Math.max(...xs)+1.5;
@@ -1058,8 +1211,6 @@ function vizRender(){
   }
 
   if(_chart){
-    // Keep the viewport anchored to the raw points so changing order
-    // does not visually move the points due to axis auto-rescaling.
     const pxMin=Math.min(...xs), pxMax=Math.max(...xs);
     const pyMin=Math.min(...ys), pyMax=Math.max(...ys);
     const xPad=Math.max(0.8,(pxMax-pxMin)*0.2);
@@ -1080,8 +1231,6 @@ function vizRender(){
     }
     _chart.update();
   }
-
-  // DD table
   const n=pts.length;
   let ddh='<div style="margin-top:12px;font-family:var(--mono);font-size:.62rem;color:var(--text3);letter-spacing:.15em;text-transform:uppercase;margin-bottom:8px;">Divided Difference Table</div><div class="dd-wrap"><table class="dd-table"><thead><tr><th>x</th><th>f[x]</th>';
   for(let j=1;j<n;j++) ddh+=`<th>Ord.${j}</th>`;
@@ -1115,10 +1264,6 @@ function vizStep(d){
   VIZ_ORD=Math.max(0,VIZ_ORD+d);
   vizRender();
 }
-
-// ─────────────────────────────────────────────
-// CHALLENGE MODE
-// ─────────────────────────────────────────────
 let _chTimer=null, CH={};
 function chFactorStr(x){
   const xv=r4(x);
@@ -1145,6 +1290,15 @@ function chLoseLife(msg){
   doShake('ch-game');
   if(CH.hearts<=0){
     clearInterval(_chTimer);
+    if(CH.isPvp && !CH.pvpDone){
+      CH.pvpDone=true;
+      pvpReportLoss();
+      showResult({emoji:'',title:'You Lost',sub:'No hearts left.',
+        ok:CH.ok,err:CH.err,time:'—',score:'—',
+        btns:[{lbl:'Back to Menu',fn:'go("menu");hideResult()'}]
+      });
+      return true;
+    }
     showResult({emoji:'',title:'Game Over',sub:'No hearts left.',
       ok:CH.ok,err:CH.err,time:'—',score:'—',
       btns:[{lbl:'Play Again',fn:'CH={hearts:3};chBegin();hideResult()'},{lbl:'Back to Menu',fn:'go("menu");hideResult()'}]
@@ -1175,13 +1329,21 @@ function chNewRound(opts={}){
     ok:0,err:0,timeLeft:total,total,mode:'solo',
     termsStep:1,termsPick:[],termsDone:false,
     tableDone:false,
-    polyTokenStep:0,polyTokens:[]
+    polyTokenStep:0,polyTokens:[],
+    noTimer:!!opts.noTimer,
+    isPvp:!!opts.isPvp,
+    pvpRoomId:opts.pvpRoomId||null,
+    pvpSlot:opts.pvpSlot||null,
+    pvpDone:!!opts.pvpDone,
+    pvpReported:false
   });
   chRender();
-  _chTimer=setInterval(()=>{
-    CH.timeLeft--; chTimerTick();
-    if(CH.timeLeft<=0){clearInterval(_chTimer);chTimeUp();}
-  },1000);
+  if(!CH.noTimer){
+    _chTimer=setInterval(()=>{
+      CH.timeLeft--; chTimerTick();
+      if(CH.timeLeft<=0){clearInterval(_chTimer);chTimeUp();}
+    },1000);
+  }
 }
 function chTimerTick(){
   const b=document.getElementById('ch-tbar'), l=document.getElementById('ch-tlbl');
@@ -1191,6 +1353,7 @@ function chTimerTick(){
   l.textContent=CH.timeLeft+'s';
 }
 function chTimeUp(){
+  if(CH.noTimer) return;
   showResult({emoji:'',title:"Time's Up!",sub:`Hearts left: ${Math.max(0,CH.hearts)}`,
     ok:CH.ok,err:CH.err,time:CH.total+'s',score:'—',
     btns:[{lbl:'Try Again',fn:'chNewRound();hideResult()'},{lbl:'Back to Menu',fn:'go("menu");hideResult()'}]
@@ -1268,9 +1431,9 @@ function chRender(){
   g.innerHTML=`
 <div style="display:flex;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
   <span style="font-family:var(--mono);font-size:.78rem;color:var(--text2);">Correct ${ok} Mistakes ${err}</span>
-  <span id="ch-tlbl" style="font-family:var(--mono);font-size:.95rem;color:var(--accent);font-weight:700;"></span>
+  ${CH.noTimer?'':`<span id="ch-tlbl" style="font-family:var(--mono);font-size:.95rem;color:var(--accent);font-weight:700;"></span>`}
 </div>
-<div class="timer-wrap"><div class="timer-bar" id="ch-tbar" style="width:100%;"></div></div>
+${CH.noTimer?'':`<div class="timer-wrap"><div class="timer-bar" id="ch-tbar" style="width:100%;"></div></div>`}
 <div class="ch-lives-wrap">
   <span class="ch-lives-label">Lives</span>
   <span class="ch-lives-hearts">${heartsMarkup}</span>
@@ -1323,7 +1486,7 @@ function chRender(){
 <div style="margin-top:10px;display:flex;gap:8px;">
   <button class="btn btn-secondary" onclick="chNewRound()">Restart</button>
 </div>`;
-  chTimerTick();
+  if(!CH.noTimer) chTimerTick();
   setTimeout(chFocusActiveInput,30);
 }
 function chSubmitTerm(){
@@ -1373,6 +1536,10 @@ function chSubmitPoly(){
     CH.polyTokens.push(chOmegaStr(k));
   }
   CH.ok++; CH.polyTokenStep++;
+  if(CH.polyTokenStep>=CH.n*2 && CH.isPvp && !CH.pvpReported){
+    CH.pvpReported=true;
+    pvpReportFinish();
+  }
   chRender();
 }
 function chPredictSolo(){

@@ -10,7 +10,7 @@
 </head>
 <body>
 
-<!-- MENU -->
+
 <div id="screen-menu" class="screen active">
   <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px;">
     <div style="animation:fadeDown .5s ease;margin-bottom:36px;">
@@ -43,7 +43,7 @@
   </div>
 </div>
 
-<!-- TUTORIAL -->
+
 <div id="screen-tutorial" class="screen">
   <div class="topbar">
     <div id="tut-prog-lbl" style="font-family:var(--mono);font-size:.72rem;color:var(--text2);"></div>
@@ -58,13 +58,13 @@
   </div>
 </div>
 
-<!-- TUT GAME -->
+
 <div id="screen-tut-game" class="screen">
   <div class="topbar"></div>
   <div class="content" id="tg-content"></div>
 </div>
 
-<!-- ADVANCED -->
+
 <div id="screen-advanced" class="screen">
   <div class="topbar">
   </div>
@@ -96,7 +96,7 @@
   </div>
 </div>
 
-<!-- VIZ LAB -->
+
 <div id="screen-viz" class="screen">
   <div class="topbar">
   </div>
@@ -138,16 +138,17 @@
   </div>
 </div>
 
-<!-- CHALLENGE -->
+
 <div id="screen-challenge" class="screen">
   <div class="topbar"></div>
   <div class="content">
     <div id="ch-start-area">
       <div class="start-overlay">
         <div class="ov-title">Challenge Mode</div>
-        <div class="ov-sub">Typed-input · 30 s per round · +10 per cell · −5 per mistake<br>Hearts carry across rounds. Survive as long as you can!</div>
+        <div class="ov-sub">Choose how you want to play.</div>
         <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;">
           <button class="btn btn-primary" onclick="chBegin()" style="font-size:.88rem;padding:11px 20px;">Start Solo</button>
+          <button class="btn btn-secondary" onclick="go('pvp')" style="font-size:.88rem;padding:11px 20px;">Multiplayer 1v1</button>
         </div>
       </div>
     </div>
@@ -155,7 +156,7 @@
   </div>
 </div>
 
-<!-- SETTINGS -->
+
 <div id="screen-settings" class="screen">
   <div class="content">
     <div class="settings-wrap">
@@ -185,7 +186,37 @@
   </div>
 </div>
 
-<!-- RESULT OVERLAY -->
+
+<div id="screen-pvp" class="screen">
+  <div class="content">
+    <div id="pvp-start" class="target-box">
+      <div class="target-label">1v1 Lobby</div>
+      <div class="typed-row">
+        <input id="pvp-name" class="typed-field" type="text" placeholder="Your name (optional)">
+        <button class="btn btn-primary" onclick="pvpCreateRoom()">Create Room</button>
+      </div>
+      <div class="typed-row">
+        <input id="pvp-code" class="typed-field" type="text" placeholder="Room code" style="width:130px;text-transform:uppercase;">
+        <button class="btn btn-secondary" onclick="pvpJoinRoom()">Join Room</button>
+      </div>
+      <div class="settings-sub">Tip: open this app on another laptop (same Wi-Fi), join with the room code.</div>
+    </div>
+    <div id="pvp-lobby" class="target-box" style="display:none;">
+      <div class="target-label">Room</div>
+      <div id="pvp-room-code" style="font-family:var(--mono);font-size:1rem;color:var(--accent);margin-bottom:8px;"></div>
+      <div id="pvp-players" style="font-family:var(--mono);font-size:.75rem;color:var(--text2);margin-bottom:8px;"></div>
+      <div id="pvp-countdown" style="font-family:var(--mono);font-size:.85rem;color:var(--blue);margin-bottom:10px;"></div>
+      <div class="typed-row">
+        <button id="pvp-ready-btn" class="btn btn-primary" onclick="pvpToggleReady()">Ready</button>
+        <button class="btn btn-secondary" onclick="pvpLeaveRoom()">Leave</button>
+      </div>
+      <div class="fb" id="pvp-fb"></div>
+    </div>
+    <div id="pvp-game" style="display:none;"></div>
+  </div>
+</div>
+
+
 <div id="res-overlay" class="res-overlay" style="display:none;">
   <div class="res-card">
     <div class="res-emoji" id="res-emoji"></div>
@@ -204,10 +235,11 @@
 <button id="quick-menu-btn" class="quick-menu-btn" onclick="go('menu')" style="display:none;">Go Back Home</button>
 <button id="settings-btn" class="settings-btn" onclick="go('settings')" title="Settings" aria-label="Settings">⚙</button>
 
-<!-- SCRIPTS -->
+
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./app.js"></script>
 </body>
 </html>
