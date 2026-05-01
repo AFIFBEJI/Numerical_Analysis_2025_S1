@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Newton Interpolation for Dummies</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+
+<!-- MENU -->
+<div id="screen-menu" class="screen active">
+  <div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:36px 20px;">
+    <div style="animation:fadeDown .5s ease;margin-bottom:36px;">
+      <div class="logo-title">Newton Interpolation</div>
+      <div class="logo-title" style="color:var(--text2);font-size:clamp(.9rem,3vw,1.5rem);">for <span style="color:var(--accent)">Dummies</span></div>
+      <div class="logo-sub">Learn · Play · Master</div>
+    </div>
+    <div class="menu-grid" style="animation:fadeUp .5s ease .08s both;">
+      <div class="menu-card" onclick="go('tutorial')">
+        <span class="card-icon"></span>
+        <div class="card-title">Tutorial</div>
+        <div class="card-desc">Full theory walkthrough then a guided game to build your first table.</div>
+      </div>
+      <div class="menu-card" onclick="go('advanced')">
+        <span class="card-icon"></span>
+        <div class="card-title">How It Works</div>
+        <div class="card-desc">Animated explanation with theory and practical walkthroughs.</div>
+      </div>
+      <div class="menu-card" onclick="go('viz')">
+        <span class="card-icon"></span>
+        <div class="card-title">Visualization Lab</div>
+        <div class="card-desc">Add custom points, watch the polynomial curve morph live.</div>
+      </div>
+      <div class="menu-card" onclick="go('challenge')">
+        <span class="card-icon"></span>
+        <div class="card-title">Challenge Mode</div>
+        <div class="card-desc">Hard typed-input, 30 s rounds, hearts carry over. Score pressure.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TUTORIAL -->
+<div id="screen-tutorial" class="screen">
+  <div class="topbar">
+    <div id="tut-prog-lbl" style="font-family:var(--mono);font-size:.72rem;color:var(--text2);"></div>
+  </div>
+  <div class="content">
+    <div id="tut-body"></div>
+    <div class="tut-nav">
+      <button class="btn btn-secondary" id="tut-prev" onclick="tutNav(-1)">← Prev</button>
+      <div class="prog-dots" id="tut-dots"></div>
+      <button class="btn btn-primary" id="tut-next" onclick="tutNav(1)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- TUT GAME -->
+<div id="screen-tut-game" class="screen">
+  <div class="topbar"></div>
+  <div class="content" id="tg-content"></div>
+</div>
+
+<!-- ADVANCED -->
+<div id="screen-advanced" class="screen">
+  <div class="topbar">
+  </div>
+  <div class="content">
+    <div class="exp-header-card">
+      <div class="exp-header-title">Complete Newton Interpolation Walkthrough</div>
+      <div class="exp-header-sub">Newton interpolation explained with one worked example and clear step-by-step visuals.</div>
+    </div>
+    <div class="exp-gif-grid">
+      <div class="exp-gif exp-gif-lg">
+        <div class="exp-gif-title">Worked Divided-Difference Table</div>
+        <div id="exp-gif-table"></div>
+        <div class="exp-gif-eq" id="exp-gif-eq">Example points: (-2,3), (0,-1), (1,2), (3,5)</div>
+      </div>
+      <div class="exp-gif">
+        <div class="exp-gif-title">Curve Evolution By Order</div>
+        <div id="exp-gif-curve"></div>
+      </div>
+      <div class="exp-gif">
+        <div class="exp-gif-title">Top Diagonal Coefficients</div>
+        <div id="exp-gif-diag"></div>
+      </div>
+      <div class="exp-gif">
+        <div class="exp-gif-title">Polynomial Build-Up</div>
+        <div id="exp-gif-formula"></div>
+      </div>
+    </div>
+    <div id="exp-body"></div>
+  </div>
+</div>
+
+<!-- VIZ LAB -->
+<div id="screen-viz" class="screen">
+  <div class="topbar">
+  </div>
+  <div class="content">
+    <div class="viz-grid">
+      <div>
+        <div class="viz-panel">
+          <div class="panel-title">Control Points</div>
+          <div class="point-list" id="viz-list"></div>
+          <div class="add-row">
+            <input class="coord-in" id="vx" type="number" placeholder="x" step="0.5">
+            <input class="coord-in" id="vy" type="number" placeholder="y" step="0.5">
+            <button class="btn btn-primary" onclick="vizAdd()" style="padding:7px 13px;">+ Add</button>
+          </div>
+          <div style="margin-top:9px;display:flex;gap:7px;flex-wrap:wrap;">
+            <button class="btn btn-secondary" onclick="vizRandom()">🎲 Random</button>
+            <button class="btn btn-secondary" style="color:var(--red);border-color:rgba(248,113,113,.3);" onclick="vizClear()">Clear</button>
+          </div>
+        </div>
+        <div class="viz-panel" style="margin-top:14px;">
+          <div class="panel-title">Newton Polynomial</div>
+          <div class="poly-display" id="viz-poly">Add ≥ 2 points to see the polynomial</div>
+          <div class="viz-ord-nav">
+            <button class="btn btn-secondary" id="viz-prev" onclick="vizStep(-1)">← Prev</button>
+            <div class="viz-ord-label" id="viz-ord-label">Order: —</div>
+            <button class="btn btn-secondary" id="viz-next" onclick="vizStep(1)">Next →</button>
+          </div>
+          <div id="viz-dd"></div>
+        </div>
+      </div>
+      <div class="viz-panel">
+        <div class="panel-title">Interpolation Curve</div>
+        <div class="chart-wrap"><canvas id="viz-canvas"></canvas></div>
+        <div style="margin-top:9px;font-family:var(--mono);font-size:.68rem;color:var(--text3);">
+          Each new point extends the polynomial and reshapes the curve in real time.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CHALLENGE -->
+<div id="screen-challenge" class="screen">
+  <div class="topbar"></div>
+  <div class="content">
+    <div id="ch-start-area">
+      <div class="start-overlay">
+        <div class="ov-title">Challenge Mode</div>
+        <div class="ov-sub">Typed-input · 30 s per round · +10 per cell · −5 per mistake<br>Hearts carry across rounds. Survive as long as you can!</div>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;">
+          <button class="btn btn-primary" onclick="chBegin()" style="font-size:.88rem;padding:11px 20px;">Start Solo</button>
+        </div>
+      </div>
+    </div>
+    <div id="ch-game" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="screen-settings" class="screen">
+  <div class="content">
+    <div class="settings-wrap">
+      <div class="settings-card">
+        <div class="target-label">Theme</div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-bg">Main background color</label>
+          <input id="set-bg" class="settings-color" type="color" value="#0e0e10" oninput="settingsThemeChanged()">
+        </div>
+        <div class="settings-row">
+          <label class="settings-label" for="set-accent">Main accent color</label>
+          <input id="set-accent" class="settings-color" type="color" value="#e2b714" oninput="settingsThemeChanged()">
+        </div>
+        <div style="margin-top:8px;">
+          <button class="btn btn-secondary" onclick="settingsResetTheme()">Reset to default</button>
+        </div>
+      </div>
+      <div class="settings-card">
+        <div class="target-label">Language</div>
+        <div class="settings-sub">Coming soon</div>
+        <div class="settings-lang-row">
+          <button class="btn btn-secondary settings-lang-btn" disabled><span class="flag-emoji">🇬🇧</span> English</button>
+          <button class="btn btn-secondary settings-lang-btn" disabled><span class="flag-emoji">🇹🇳</span> Tunisian Arabic</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RESULT OVERLAY -->
+<div id="res-overlay" class="res-overlay" style="display:none;">
+  <div class="res-card">
+    <div class="res-emoji" id="res-emoji"></div>
+    <div class="res-title" id="res-title"></div>
+    <div class="res-sub" id="res-sub"></div>
+    <div class="res-stats">
+      <div class="res-stat"><div class="rs-label">Correct</div><div class="rs-val" id="res-ok" style="color:var(--green)"></div></div>
+      <div class="res-stat"><div class="rs-label">Mistakes</div><div class="rs-val" id="res-err" style="color:var(--red)"></div></div>
+      <div class="res-stat"><div class="rs-label">Time</div><div class="rs-val" id="res-time" style="color:var(--blue)"></div></div>
+      <div class="res-stat"><div class="rs-label">Score</div><div class="rs-val" id="res-score" style="color:var(--accent)"></div></div>
+    </div>
+    <div class="res-btns" id="res-btns"></div>
+  </div>
+</div>
+
+<button id="quick-menu-btn" class="quick-menu-btn" onclick="go('menu')" style="display:none;">Go Back Home</button>
+<button id="settings-btn" class="settings-btn" onclick="go('settings')" title="Settings" aria-label="Settings">⚙</button>
+
+<!-- SCRIPTS -->
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="./app.js"></script>
+</body>
+</html>
