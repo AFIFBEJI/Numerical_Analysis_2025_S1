@@ -150,32 +150,12 @@ function go(id){
   if(id==='pvp') pvpInit();
   if(id==='menu'){ clearInterval(_advTimer); clearInterval(_chTimer); clearInterval(_expTimer); clearInterval(_pvpPollInt); }
 }
-let SB_URL='';
-let SB_ANON='';
+let SB_URL=(window.APP_CONFIG&&window.APP_CONFIG.SUPABASE_URL)||'';
+let SB_ANON=(window.APP_CONFIG&&window.APP_CONFIG.SUPABASE_ANON_KEY)||'';
 let sb=null;
 const PVP={room:null,players:[],player:null,chan:null,countdown:null};
-async function loadEnvFile(){
-  try{
-    const res=await fetch('./.env',{cache:'no-store'});
-    if(!res.ok) return false;
-    const txt=await res.text();
-    const lines=txt.split(/\r?\n/);
-    for(const ln of lines){
-      const row=ln.trim();
-      if(!row||row.startsWith('#')) continue;
-      const eq=row.indexOf('=');
-      if(eq<1) continue;
-      const k=row.slice(0,eq).trim();
-      const v=row.slice(eq+1).trim();
-      if(k==='SUPABASE_URL') SB_URL=v;
-      if(k==='SUPABASE_ANON_KEY') SB_ANON=v;
-    }
-    return true;
-  }catch(e){ return false; }
-}
 async function ensureSupabase(){
   if(sb) return true;
-  if(!SB_URL||!SB_ANON) await loadEnvFile();
   if(window.supabase&&SB_URL.startsWith('http')&&SB_ANON){
     sb=window.supabase.createClient(SB_URL,SB_ANON);
     return true;
@@ -190,7 +170,7 @@ function pvpClientId(){
 function pvpCode(){ const s='ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let o=''; for(let i=0;i<6;i++) o+=s[rnd(0,s.length-1)]; return o; }
 async function pvpRequire(){
   if(await ensureSupabase()) return true;
-  showFB('pvp-fb','Missing Supabase config (.env).','err');
+  showFB('pvp-fb','Missing Supabase config (config.js).','err');
   return false;
 }
 function pvpInit(){ /* screen hook */ }
