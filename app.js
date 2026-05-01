@@ -1120,25 +1120,63 @@ function vizStep(d){
 // CHALLENGE MODE
 // ─────────────────────────────────────────────
 let _chTimer=null, CH={};
+function chFactorStr(x){
+  const xv=r4(x);
+  return xv>=0?`(x-${fmt(xv)})`:`(x+${fmt(Math.abs(xv))})`;
+}
+function chOmegaStr(k){
+  if(k===0) return '1';
+  let out='';
+  for(let i=0;i<k;i++) out+=chFactorStr(CH.pts[i].x);
+  return out;
+}
+function chOmegaLatexWithPicks(k,picks){
+  if(k===0) return '\\omega_0(x)=1';
+  let out=`\\omega_${k}(x)=`;
+  for(let i=0;i<k;i++){
+    if(i<picks.length) out+=chFactorStr(CH.pts[picks[i]].x);
+    else out+='(x-\\color{orange}{?})';
+  }
+  return out;
+}
+function chLoseLife(msg){
+  CH.err++; CH.hearts--;
+  showFB('ch-fb',msg||'Wrong. -1 heart.','err');
+  doShake('ch-game');
+  if(CH.hearts<=0){
+    clearInterval(_chTimer);
+    showResult({emoji:'',title:'Game Over',sub:'No hearts left.',
+      ok:CH.ok,err:CH.err,time:'—',score:'—',
+      btns:[{lbl:'Play Again',fn:'CH={hearts:3};chBegin();hideResult()'},{lbl:'Back to Menu',fn:'go("menu");hideResult()'}]
+    });
+    return true;
+  }
+  return false;
+}
 function chReset(){
   clearInterval(_chTimer);
   document.getElementById('ch-start-area').style.display='block';
   document.getElementById('ch-game').style.display='none';
-  CH={hearts:3,score:0,round:0,mode:'solo'};
+  CH={hearts:3,mode:'solo'};
 }
 function chBegin(){
   document.getElementById('ch-start-area').style.display='none';
   document.getElementById('ch-game').style.display='block';
-  chNewRound({mode:'solo',total:30});
+  chNewRound({mode:'solo',total:80});
 }
 function chNewRound(opts={}){
   clearInterval(_chTimer);
-  CH.round=(CH.round||0)+1;
   const pts=opts.forcedPts||genPoints(4), t=ddTable(pts), n=4;
   const rev=Array.from({length:n},()=>new Array(n).fill(false));
   for(let i=0;i<n;i++) rev[i][0]=true;
-  const total=opts.total||30;
-  Object.assign(CH,{pts,t,n,rev,ci:0,cj:1,step:0,sel:[],ok:0,err:0,timeLeft:total,total,cv:[],mode:'solo'});
+  const total=opts.total||80;
+  Object.assign(CH,{
+    pts,t,n,rev,ci:0,cj:1,step:0,sel:[],
+    ok:0,err:0,timeLeft:total,total,mode:'solo',
+    termsStep:1,termsPick:[],termsDone:false,
+    tableDone:false,
+    polyTokenStep:0,polyTokens:[]
+  });
   chRender();
   _chTimer=setInterval(()=>{
     CH.timeLeft--; chTimerTick();
@@ -1153,10 +1191,32 @@ function chTimerTick(){
   l.textContent=CH.timeLeft+'s';
 }
 function chTimeUp(){
-  showResult({emoji:'',title:"Time's Up!",sub:`Round ${CH.round} done. Hearts: ${CH.hearts}`,
-    ok:CH.ok,err:CH.err,time:CH.total+'s',score:CH.score,
-    btns:[{lbl:'Next Round',fn:'chNewRound();hideResult()'},{lbl:'Back to Menu',fn:'go("menu");hideResult()'}]
+  showResult({emoji:'',title:"Time's Up!",sub:`Hearts left: ${Math.max(0,CH.hearts)}`,
+    ok:CH.ok,err:CH.err,time:CH.total+'s',score:'—',
+    btns:[{lbl:'Try Again',fn:'chNewRound();hideResult()'},{lbl:'Back to Menu',fn:'go("menu");hideResult()'}]
   });
+}
+function chTableExpected(){
+  const {ci,cj,pts,t}=CH;
+  return [r4(t[ci+1][cj-1]),r4(t[ci][cj-1]),r4(pts[ci+cj].x),r4(pts[ci].x)];
+}
+function chAdvanceTable(){
+  let {ci,cj,n}=CH;
+  ci++; if(ci>n-cj-1){cj++;ci=0;}
+  if(cj>=n){CH.tableDone=true; return;}
+  CH.ci=ci; CH.cj=cj; CH.step=0; CH.sel=[];
+}
+function chFocusActiveInput(){
+  if(CH.phase==='over') return;
+  let el=null;
+  if((CH.termsStep||0)<CH.n) el=document.getElementById('ch-term-input');
+  else if(!CH.tableDone) el=document.getElementById('ch-table-input');
+  else if((CH.polyTokenStep||0)<CH.n*2) el=document.getElementById('ch-poly-input');
+  else el=document.getElementById('ch-pred-input');
+  if(el){
+    el.focus();
+    el.select?.();
+  }
 }
 function chRender(){
   const heartCount=Math.max(0,Math.min(3,CH.hearts||0));
@@ -1164,8 +1224,19 @@ function chRender(){
   const heartsLost='🤍'.repeat(3-heartCount);
   const heartsMarkup=`${heartsLive}${heartsLost}`;
   const {pts,t,n,rev,ci,cj,ok,err,step}=CH;
-  const cv=[r4(t[ci+1][cj-1]),r4(t[ci][cj-1]),r4(pts[ci+cj].x),r4(pts[ci].x)];
-  CH.cv=cv;
+  const termsDone=CH.termsStep>=n;
+  const tableDone=CH.tableDone;
+  const polyDone=(CH.polyTokenStep||0)>=n*2;
+
+  let termsRows=Array.from({length:n},(_,k)=>{
+    if(k===0) return '\\omega_0(x)=1';
+    if(k<CH.termsStep) return `\\omega_${k}(x)=${chOmegaStr(k)}`;
+    if(k===CH.termsStep&&!termsDone) return chOmegaLatexWithPicks(k,CH.termsPick||[]);
+    return chOmegaLatexWithPicks(k,[]);
+  }).map((r,k)=>`<div class="omega-row ${(!termsDone&&k===CH.termsStep)?'omega-row-active':''}">${K(r,false)}</div>`).join('');
+  let ptsTbl='<div class="dd-wrap"><table class="dd-table tg-pts-table" style="min-width:280px;"><thead><tr><th class="tg-idx-sm">i</th><th>x</th><th>y</th></tr></thead><tbody>';
+  for(let i=0;i<n;i++) ptsTbl+=`<tr><td class="cell-index tg-idx-sm">${i}</td><td class="cell-known">${fmt(pts[i].x)}</td><td class="cell-known">${fmt(pts[i].y)}</td></tr>`;
+  ptsTbl+='</tbody></table></div>';
 
   let tbl='<div class="dd-wrap"><table class="dd-table"><thead><tr><th>x</th><th>f[x]</th>';
   for(let j=1;j<n;j++) tbl+=`<th>Ord.${j}</th>`;
@@ -1176,15 +1247,13 @@ function chRender(){
       if(j===0){tbl+=`<td class="cell-known">${fmt(t[i][0])}</td>`;continue;}
       if(i<j){tbl+='<td class="cell-empty"></td>';continue;}
       const ti=i-j;
-      if(rev[ti][j]) tbl+=`<td class="cell-revealed">${fmt(r4(t[ti][j]))}</td>`;
-      else if(ti===ci&&j===cj){
-        tbl+=`<td class="cell-target">
-          <div id="ch-live" class="cell-live-formula" style="text-align:center;margin:2px 0 6px 0;"></div>
-          <div class="typed-row" style="margin:0;gap:6px;justify-content:center;">
-            <input class="typed-field" id="ch-single" type="text" inputmode="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="S${step+1}" oninput="chSyncFormula()" onfocus="chSyncFormula()" onkeydown="if(event.key==='Enter')chSubmitSingle()">
-            <button class="btn btn-primary" onclick="chSubmitSingle()" style="padding:6px 10px;">OK</button>
-          </div>
-        </td>`;
+      if(rev[ti][j]){
+        const a=fmt(r4(t[ti+1][j-1])), b=fmt(r4(t[ti][j-1])), c=fmt(r4(pts[ti+j].x)), d=fmt(r4(pts[ti].x));
+        tbl+=`<td class="cell-revealed">${fmt(r4(t[ti][j]))}<div class="cell-note"><span class="frac"><span class="num">(${a})-(${b})</span><span class="den">(${c})-(${d})</span></span></div></td>`;
+      } else if(ti===ci&&j===cj){
+        const tok=(k)=>k<CH.sel.length?fmt(CH.sel[k]):k===CH.step?'<span class="hot">?</span>':'?';
+        const live=`<span class="frac"><span class="num">(${tok(0)})-(${tok(1)})</span><span class="den">(${tok(2)})-(${tok(3)})</span></span>`;
+        tbl+=`<td class="cell-target"><div class="cell-live-formula">${live}</div><div class="cell-prompt">Type value for slot ${step+1}</div></td>`;
       }
       else tbl+=`<td class="cell-hidden" style="font-size:.65rem;">hidden</td>`;
     }
@@ -1192,7 +1261,9 @@ function chRender(){
   }
   tbl+='</tbody></table></div>';
 
-  const showTimer=true;
+  const s=CH.polyTokenStep||0, k=Math.floor(s/2);
+  const wantCoeff=(s%2===0);
+  const polyBuilt=(CH.polyTokens||[]).join('\\,');
   const g=document.getElementById('ch-game');
   g.innerHTML=`
 <div style="display:flex;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px;">
@@ -1204,76 +1275,115 @@ function chRender(){
   <span class="ch-lives-label">Lives</span>
   <span class="ch-lives-hearts">${heartsMarkup}</span>
 </div>
-${tbl}
-<div class="target-box" style="margin-top:10px;">
-  <div class="target-label">Target — row ${ci+cj}, order ${cj}</div>
-  <div style="font-size:.7rem;color:var(--text2);">Type directly inside the highlighted cell in the table.</div>
+<div class="ch-grid2-top">
+  <div class="target-box ${termsDone?'ch-done-panel':''}">
+    <div class="target-label">Terms (typed)</div>
+    ${ptsTbl}
+    <div class="omega-tri">${termsRows}</div>
+    ${termsDone?`<div style="font-size:.74rem;color:var(--green);margin-top:8px;">Done</div>`:`
+    <div class="typed-row" style="margin-top:10px;">
+      <input id="ch-term-input" class="typed-field" type="text" inputmode="decimal" placeholder="next x for ω${CH.termsStep}" onkeydown="if(event.key==='Enter')chSubmitTerm()">
+      <button class="btn btn-primary" onclick="chSubmitTerm()">OK</button>
+    </div>
+    <div style="font-size:.7rem;color:var(--text2);">Type x-value in order for current omega row.</div>`}
+  </div>
+  <div class="target-box ${(!termsDone)?'ch-locked-panel':tableDone?'ch-done-panel':''}">
+    <div class="target-label">Table (typed)</div>
+    ${tbl}
+    ${tableDone?`<div style="font-size:.74rem;color:var(--green);margin-top:8px;">Done</div>`:termsDone?`
+    <div class="typed-row" style="margin-top:10px;">
+      <input id="ch-table-input" class="typed-field" type="text" inputmode="decimal" placeholder="slot ${step+1}" onkeydown="if(event.key==='Enter')chSubmitTable()">
+      <button class="btn btn-primary" onclick="chSubmitTable()">OK</button>
+    </div>
+    <div style="font-size:.7rem;color:var(--text2);">Target row ${ci+cj}, order ${cj}.</div>`:`<div style="font-size:.7rem;color:var(--text3);margin-top:8px;">Complete Terms first.</div>`}
+  </div>
+  </div>
+</div>
+<div class="ch-grid-bottom">
+  <div class="target-box ${(!tableDone)?'ch-locked-panel':polyDone?'ch-done-panel':''}">
+    <div class="target-label">Polynomial (typed)</div>
+    <div style="font-size:.74rem;color:var(--text2);margin-bottom:8px;">Type alternating: coefficient then omega term.</div>
+    <div style="font-size:.9rem;overflow-x:auto;margin-bottom:8px;">${polyBuilt?K(`P(x)= ${polyBuilt}`,false):'P(x)= ?'}</div>
+    ${polyDone?`
+      <div class="typed-row">
+        <input id="ch-pred-input" class="typed-field" type="text" inputmode="decimal" placeholder="x value" onkeydown="if(event.key==='Enter')chPredictSolo()">
+        <button class="btn btn-primary" onclick="chPredictSolo()">Predict</button>
+      </div>
+      <div id="ch-pred-out" style="font-size:.75rem;color:var(--accent);font-family:var(--mono);"></div>
+      <button class="btn btn-secondary" onclick="chNewRound()" style="margin-top:10px;">Restart from step 1</button>
+    `:tableDone?`
+    <div class="typed-row">
+      <input id="ch-poly-input" class="typed-field" type="text" placeholder="${wantCoeff?`a${k} value`:`ω${k}(x) term`}" onkeydown="if(event.key==='Enter')chSubmitPoly()">
+      <button class="btn btn-primary" onclick="chSubmitPoly()">OK</button>
+    </div>
+    <div style="font-size:.7rem;color:var(--text2);">Now type ${wantCoeff?`coefficient a${k}`:`omega term ω${k}(x)`}.</div>`:`<div style="font-size:.7rem;color:var(--text3);margin-top:8px;">Complete Table first.</div>`}
+  </div>
 </div>
 <div class="fb" id="ch-fb"></div>
 <div style="margin-top:10px;display:flex;gap:8px;">
-  <button class="btn btn-secondary" onclick="chNewRound()">Skip Round</button>
+  <button class="btn btn-secondary" onclick="chNewRound()">Restart</button>
 </div>`;
-  chSyncFormula();
   chTimerTick();
-  setTimeout(()=>document.getElementById('ch-single')?.focus(),50);
+  setTimeout(chFocusActiveInput,30);
 }
-function chSyncFormula(){
-  const inputEl=document.getElementById('ch-single');
-  const raw=inputEl?inputEl.value.trim():'';
-  const parsed=parseFloat(raw);
-  const cur=(raw===''||Number.isNaN(parsed))?null:r4(parsed);
-  const tok=(i)=>{
-    if(i<CH.sel.length) return fmt(CH.sel[i]);
-    if(i===CH.step) return cur===null?'<span class="hot">?</span>':fmt(cur);
-    return '?';
-  };
-  const live=`<span class="frac"><span class="num">(${tok(0)})-(${tok(1)})</span><span class="den">(${tok(2)})-(${tok(3)})</span></span>`;
-  const liveEl=document.getElementById('ch-live');
-  if(liveEl) liveEl.innerHTML=live;
+function chSubmitTerm(){
+  if(CH.termsStep>=CH.n) return;
+  const el=document.getElementById('ch-term-input'); if(!el) return;
+  const v=parseFloat(el.value.trim());
+  if(Number.isNaN(v)){ if(!chLoseLife('Type a number.')) chRender(); return; }
+  const expIdx=(CH.termsPick||[]).length;
+  const exp=r4(CH.pts[expIdx].x);
+  if(Math.abs(r4(v)-exp)>0.0001){ if(!chLoseLife(`Expected x${expIdx} first.`)) chRender(); return; }
+  CH.termsPick.push(expIdx); CH.ok++;
+  if(CH.termsPick.length===CH.termsStep){
+    CH.termsStep++; CH.termsPick=[];
+    showFB('ch-fb',`ω${CH.termsStep-1} completed.`,'ok');
+  }
+  chRender();
 }
-function chSubmitSingle(){
-  const el=document.getElementById('ch-single'); if(!el) return;
+function chSubmitTable(){
+  if(CH.tableDone || CH.termsStep<CH.n) return;
+  const el=document.getElementById('ch-table-input'); if(!el) return;
+  const v=parseFloat(el.value.trim());
+  if(Number.isNaN(v)){ if(!chLoseLife('Type a number.')) chRender(); return; }
+  const exp=chTableExpected()[CH.step];
+  if(Math.abs(r4(v)-exp)>0.0001){ if(!chLoseLife('Wrong table slot value.')) chRender(); return; }
+  CH.sel.push(exp); CH.step++; CH.ok++;
+  if(CH.step===4){
+    CH.rev[CH.ci][CH.cj]=true;
+    chAdvanceTable();
+  }
+  chRender();
+}
+function chNormExpr(s){ return (s||'').toLowerCase().replace(/\s+/g,''); }
+function chSubmitPoly(){
+  if(!CH.tableDone) return;
+  const done=(CH.polyTokenStep||0)>=CH.n*2; if(done) return;
+  const el=document.getElementById('ch-poly-input'); if(!el) return;
   const raw=el.value.trim();
-  const parsed=parseFloat(raw);
-  if(raw===''||Number.isNaN(parsed)){
-    el.classList.remove('ok');
-    el.classList.add('err');
-    CH.err++; CH.hearts--; CH.score=Math.max(0,CH.score-5);
-    showFB('ch-fb','Wrong. -5 points, -1 heart.','err'); scoreFlash('-5',false); doShake('ch-game');
+  const s=CH.polyTokenStep||0, k=Math.floor(s/2), wantCoeff=(s%2===0);
+  if(wantCoeff){
+    const v=parseFloat(raw);
+    const exp=r4(CH.t[0][k]);
+    if(Number.isNaN(v)||Math.abs(r4(v)-exp)>0.0001){ if(!chLoseLife(`Wrong a${k}.`)) chRender(); return; }
+    CH.polyTokens.push(`${k===0?'':exp>=0?'+':'-'}${k===0?fmt(exp):'\\,'+fmt(Math.abs(exp))}`);
   } else {
-    const got=r4(parsed), exp=r4(CH.cv[CH.step]);
-    if(Math.abs(got-exp)<=0.0001){
-      CH.sel.push(got); CH.step++; CH.ok++;
-      showFB('ch-fb',`Slot ${CH.step} correct.`,'ok');
-      if(CH.step===4){
-        CH.score+=10; CH.rev[CH.ci][CH.cj]=true;
-        showFB('ch-fb','+10 points','ok'); scoreFlash('+10',true);
-        let {ci,cj,n}=CH; ci++; if(ci>n-cj-1){cj++;ci=0;}
-        if(cj>=n){
-          clearInterval(_chTimer);
-          const bonus=CH.timeLeft*2; CH.score+=bonus;
-          showFB('ch-fb',`Table done. +${bonus} time bonus`,'ok');
-          setTimeout(chNewRound,1000); return;
-        }
-        CH.ci=ci; CH.cj=cj; CH.step=0; CH.sel=[]; setTimeout(chRender,320); return;
-      }
-      setTimeout(chRender,220); return;
-    } else {
-      el.classList.remove('ok');
-      el.classList.add('err');
-      CH.err++; CH.hearts--; CH.score=Math.max(0,CH.score-5);
-      showFB('ch-fb','Wrong. -5 points, -1 heart.','err'); scoreFlash('-5',false); doShake('ch-game');
-    }
+    const exp=chNormExpr(chOmegaStr(k));
+    if(chNormExpr(raw)!==exp){ if(!chLoseLife(`Wrong ω${k}(x) term.`)) chRender(); return; }
+    CH.polyTokens.push(chOmegaStr(k));
   }
-  if(CH.hearts<=0){
-    clearInterval(_chTimer);
-    showResult({emoji:'',title:'Game Over',sub:`Survived ${CH.round} round(s). Final: ${CH.score} pts`,
-      ok:CH.ok,err:CH.err,time:'—',score:CH.score,
-      btns:[{lbl:'Play Again',fn:'CH={hearts:3,score:0,round:0};chBegin();hideResult()'},{lbl:'Back to Menu',fn:'go("menu");hideResult()'}]
-    }); return;
-  }
-  setTimeout(chRender,420);
+  CH.ok++; CH.polyTokenStep++;
+  chRender();
 }
-function chSubmit(){ chSubmitSingle(); }
+function chPredictSolo(){
+  const inEl=document.getElementById('ch-pred-input');
+  const out=document.getElementById('ch-pred-out');
+  if(!inEl||!out) return;
+  const x=parseFloat(inEl.value.trim());
+  if(Number.isNaN(x)){ out.textContent='Enter valid x.'; return; }
+  const y=r4(evalNewton(CH.pts,CH.t,x));
+  out.textContent=`P(${fmt(x)}) = ${fmt(y)}`;
+}
+function chSubmit(){ chSubmitTable(); }
 
 themeInit();
