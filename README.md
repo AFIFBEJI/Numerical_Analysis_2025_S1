@@ -21,6 +21,7 @@ This repository contains a project designed to enhance the pedagogical approach 
     * Mohamed Yassine Ferjani
     * Houssem Eddine Said
     * Mohamed Amine Ben Abdeljlil
+    * Zeineb Mrabet
     - Role: Students
     - Institution: ESPRIT, School of Engineers
 
