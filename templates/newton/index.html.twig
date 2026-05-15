@@ -1,0 +1,490 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Newton - Interpolation{% endblock %}
+
+{% block body %}
+<div class="container method-page method-page-newton">
+    <div class="page-header">
+        <h1>Interpolation de Newton</h1>
+        <p>Méthode des différences divisées avec visualisation graphique</p>
+    </div>
+
+    <div class="content-grid">
+        <div class="input-section">
+            {% if error %}
+                <div class="error-message">
+                    <strong>Erreur :</strong> {{ error }}
+                </div>
+            {% endif %}
+
+            <form method="post" id="newtonForm" class="points-form">
+                <h2>Saisie des points</h2>
+                
+                <div class="form-description">
+                    <p>Entrez au moins 2 points. Les valeurs de x doivent être uniques.</p>
+                </div>
+                
+                <div id="pointsContainer" class="points-container">
+                    {% if submittedData.x is defined and submittedData.x is not empty %}
+                        {# Afficher les champs avec les valeurs soumises #}
+                        {% for i in 0..(submittedData.x|length - 1) %}
+                            <div class="point-row">
+                                <div class="input-group">
+                                    <label>x{{ i }}:</label>
+                                    <input type="number" step="any" name="x[]" required value="{{ submittedData.x[i] }}">
+                                </div>
+                                <div class="input-group">
+                                    <label>y{{ i }}:</label>
+                                    <input type="number" step="any" name="y[]" required value="{{ submittedData.y[i] }}">
+                                </div>
+                                {% if i >= 2 %}
+                                    <button type="button" onclick="this.parentNode.remove(); updatePointLabels();" class="btn-remove">×</button>
+                                {% endif %}
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        {# Champs vides au départ #}
+                        <div class="point-row">
+                            <div class="input-group">
+                                <label>x₀:</label>
+                                <input type="number" step="any" name="x[]" required>
+                            </div>
+                            <div class="input-group">
+                                <label>y₀:</label>
+                                <input type="number" step="any" name="y[]" required>
+                            </div>
+                        </div>
+                        <div class="point-row">
+                            <div class="input-group">
+                                <label>x₁:</label>
+                                <input type="number" step="any" name="x[]" required>
+                            </div>
+                            <div class="input-group">
+                                <label>y₁:</label>
+                                <input type="number" step="any" name="y[]" required>
+                            </div>
+                        </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" onclick="addPoint()" class="btn-secondary">
+                        <span>+</span> Ajouter un point
+                    </button>
+                    <button type="button" onclick="removePoint()" class="btn-warning">
+                        <span>-</span> Supprimer un point
+                    </button>
+                    <button type="submit" class="btn-primary">
+                        Calculer & Visualiser
+                    </button>
+                </div>
+            </form>
+
+            {% if points is not empty %}
+                <div class="points-table-section">
+                    <h3>Points saisis</h3>
+                    <table class="points-table">
+                        <thead>
+                            <tr>
+                                <th>Point</th>
+                                {% for point in points %}
+                                    <th>P{{ loop.index0 }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>x</strong></td>
+                                {% for point in points %}
+                                    <td>{{ point.x }}</td>
+                                {% endfor %}
+                            </tr>
+                            <tr>
+                                <td><strong>y</strong></td>
+                                {% for point in points %}
+                                    <td>{{ point.y }}</td>
+                                {% endfor %}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+
+            <div style="margin-top: 1.25rem;">
+                <a href="{{ path('app_cours') }}?section=newton" class="btn-secondary" style="width:100%;text-align:center;">
+                    Voir le cours de Newton
+                </a>
+            </div>
+        </div>
+
+        <div class="results-section">
+            {% if coefficients is not empty %}
+                <div class="results-card">
+                    <h2>Résultats de l'interpolation</h2>
+                    
+                    <div class="coefficients-section">
+                        <div class="coefficients-header">
+                            <h3>Coefficients de Newton</h3>
+                            <button type="button" onclick="showCalculationSteps()" class="btn-info">
+                                Voir les étapes de calcul
+                            </button>
+                        </div>
+                        <div class="coefficients-list">
+                            {% for beta in coefficients %}
+                                <div class="coefficient-item">
+                                    <span class="coefficient-label">β{{ loop.index0 }}</span>
+                                    <span class="coefficient-value">{{ beta }}</span>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                   {# Dans la section du polynôme, ajouter : #}
+{# Dans la section des résultats, modifier : #}
+{% if polynomial %}
+    <div class="polynomial-section">
+    <h3>Polynôme interpolateur</h3>
+        <div class="polynomial-display">
+            P(x) = {{ polynomial|raw }}
+        </div>
+    </div>
+{% endif %}
+                </div>
+
+                <!-- Modal pour afficher les étapes de calcul -->
+                <div id="calculationModal" class="modal">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h2>Étapes de calcul - Méthode de Newton</h2>
+                            <span class="close" onclick="closeModal()">&times;</span>
+                        </div>
+                        <div class="modal-body">
+                            <div id="calculationSteps">
+                                <!-- Les étapes seront ajoutées ici par JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if chartData %}
+                <div class="chart-section">
+                    <h3>Visualisation graphique</h3>
+                    <div class="chart-container">
+                        <canvas id="newtonChart"></canvas>
+                    </div>
+                    <!-- Légende dupliquée supprimée (affichage géré par Chart.js) -->
+                </div>
+            {% else %}
+                <div class="placeholder-chart">
+                    <div class="placeholder-content">
+                        <h3>Visualisation en attente</h3>
+                        <p>Entrez des points et cliquez sur "Calculer & Visualiser" pour voir le graphique</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// Gestion des points dynamiques
+let pointCount = {{ submittedData.x is defined ? submittedData.x|length : 2 }};
+
+function addPoint() {
+    const container = document.getElementById('pointsContainer');
+    const pointRow = document.createElement('div');
+    pointRow.className = 'point-row';
+    pointRow.innerHTML = `
+        <div class="input-group">
+            <label>x${pointCount}:</label>
+            <input type="number" step="any" name="x[]" required>
+        </div>
+        <div class="input-group">
+            <label>y${pointCount}:</label>
+            <input type="number" step="any" name="y[]" required>
+        </div>
+        <button type="button" onclick="this.parentNode.remove(); updatePointLabels();" class="btn-remove">×</button>
+    `;
+    container.appendChild(pointRow);
+    pointCount++;
+    updatePointLabels();
+}
+
+function removePoint() {
+    const container = document.getElementById('pointsContainer');
+    if (container.children.length > 2) {
+        container.lastElementChild.remove();
+        pointCount--;
+        updatePointLabels();
+    }
+}
+
+function updatePointLabels() {
+    const rows = document.getElementById('pointsContainer').children;
+    for (let i = 0; i < rows.length; i++) {
+        const labels = rows[i].querySelectorAll('label');
+        labels[0].textContent = `x${i}:`;
+        labels[1].textContent = `y${i}:`;
+    }
+}
+
+// Fonction pour afficher les étapes de calcul
+function showCalculationSteps() {
+    const modal = document.getElementById('calculationModal');
+    const stepsContainer = document.getElementById('calculationSteps');
+    
+    const points = {{ points|json_encode|raw }};
+    const coefficients = {{ coefficients|json_encode|raw }};
+    
+    stepsContainer.innerHTML = generateNewtonDetails(points, coefficients);
+
+    modal.style.display = 'block';
+}
+function generateNewtonDetails(points, coefficients) {
+    let html = '';
+
+    const n = points.length;
+    const degree = n - 1;
+
+    html += `
+        <h3>Calcul détaillé des coefficients βᵢ</h3>
+        <p>Nous utilisons la méthode des différences divisées de Newton.</p>
+        <hr>
+    `;
+
+    // Etape 1 : rappel des points
+    html += `<h4>1. Points d'interpolation</h4>`;
+    points.forEach((p, i) => {
+        html += `P${i} = (x${i} = ${p.x}, y${i} = ${p.y})<br>`;
+    });
+
+    // Etape 2 : Forme générale du polynôme de Newton
+    html += `<h4>2. Forme générale du polynôme de Newton</h4>`;
+    let generalForm = `P<sub>${degree}</sub>(x) = β₀`;
+    for (let i = 1; i < n; i++) {
+        let product = "";
+        for (let j = 0; j < i; j++) {
+            if (points[j].x == 0) {
+                product += `(x)`;
+            } else if (parseFloat(points[j].x) < 0) {
+                product += `(x + ${Math.abs(parseFloat(points[j].x))})`;
+            } else {
+                product += `(x - ${points[j].x})`;
+            }
+        }
+        generalForm += ` + β<sub>${i}</sub>${product}`;
+    }
+    html += `<div class="formula">${generalForm}</div>`;
+
+    html += `<h4>3. Calcul des coefficients βᵢ</h4>`;
+
+    // β0 = y0
+    html += `<p><strong>β₀ = y₀ = ${points[0].y}</strong></p>`;
+
+    // Calculer toutes les différences divisées
+    const f = [];
+    f[0] = points.map(p => parseFloat(p.y));
+
+    for (let i = 1; i < n; i++) {
+        f[i] = [];
+        for (let j = 0; j < n - i; j++) {
+            const xj = parseFloat(points[j].x);
+            const xj_i = parseFloat(points[j+i].x);
+            f[i][j] = (f[i-1][j+1] - f[i-1][j]) / (xj_i - xj);
+        }
+    }
+
+    // β1 ... β(n-1)
+    for (let i = 1; i < n; i++) {
+        html += `<h5>Calcul de β<sub>${i}</sub> :</h5>`;
+
+        if (i === 1) {
+            // β1 = (y1 - y0)/(x1 - x0)
+            const y1 = parseFloat(points[1].y);
+            const y0 = parseFloat(points[0].y);
+            const x1 = parseFloat(points[1].x);
+            const x0 = parseFloat(points[0].x);
+            html += `
+                <div class="calculation-step">
+                    β<sub>1</sub> = f[x₀, x₁] = (y₁ − y₀) / (x₁ − x₀)<br>
+                    = (${y1} − ${y0}) / (${x1} − ${x0})<br>
+                    = <strong>${formatExactNumber(f[1][0])}</strong>
+                </div>
+            `;
+        } else {
+            // βi = ( f[i-1][1] – f[i-1][0] ) / (x_i – x_0)
+            const xi = parseFloat(points[i].x);
+            const x0 = parseFloat(points[0].x);
+            html += `
+                <div class="calculation-step">
+                    β<sub>${i}</sub> = f[x₀,...,x<sub>${i}</sub>] = (f[x₁,...,x<sub>${i}</sub>] − f[x₀,...,x<sub>${i-1}</sub>]) / (x<sub>${i}</sub> − x₀)<br>
+                    = (${formatExactNumber(f[i-1][1])} − ${formatExactNumber(f[i-1][0])}) / (${xi} − ${x0})<br>
+                    = <strong>${coefficients[i]}</strong>
+                </div>
+            `;
+        }
+    }
+
+    // Etape 4 : polynôme final développé
+    html += `<h4>4. Polynôme final développé</h4>`;
+    const finalPoly = document.querySelector('.polynomial-display')?.innerHTML;
+    html += `<div class="final-result">${finalPoly}</div>`;
+
+    return html;
+}
+
+
+
+// Fonction pour formater les nombres (entier si entier, sinon décimal)
+function formatExactNumber(value) {
+    if (Math.abs(value - Math.round(value)) < 1e-10) {
+        return Math.round(value);
+    }
+    // Pour les décimaux, on garde 6 décimales maximum
+    return parseFloat(value.toFixed(6));
+}
+
+function closeModal() {
+    document.getElementById('calculationModal').style.display = 'none';
+}
+
+// Chart.js
+let newtonChart = null;
+
+{% if chartData %}
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('newtonChart').getContext('2d');
+
+    // Points d'interpolation
+    const pointsX = {{ chartData.points|map(p => p.x)|json_encode|raw }};
+    const pointsY = {{ chartData.points|map(p => p.y)|json_encode|raw }};
+    const pointsDataset = pointsX.map((x, i) => ({ x: parseFloat(x), y: parseFloat(pointsY[i]) }));
+
+    // Courbe interpolée
+    const curveX = {{ chartData.labels|json_encode|raw }};
+    const curveY = {{ chartData.data|json_encode|raw }};
+    const curveDataset = curveX.map((x, i) => ({ x: x, y: curveY[i] }));
+
+    // Configuration du graphique
+    newtonChart = new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'Polynôme de Newton P(x)',
+                    data: curveDataset,
+                    borderColor: '#5b4ee6',
+                    backgroundColor: 'rgba(91, 78, 230, 0.12)',
+                    borderWidth: 3,
+                    pointRadius: 0,
+                    pointHoverRadius: 0,
+                    showLine: true,
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: 'Points d\'interpolation',
+                    data: pointsDataset,
+                    backgroundColor: '#7a67f2',
+                    borderColor: '#ffffff',
+                    borderWidth: 2,
+                    pointRadius: 8,
+                    pointHoverRadius: 10,
+                    showLine: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                mode: 'nearest',
+                intersect: false
+            },
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        usePointStyle: true,
+                        padding: 20
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (context.parsed.y !== null) {
+                                label += `: (${context.parsed.x.toFixed(2)}, ${context.parsed.y.toFixed(4)})`;
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    title: {
+                        display: true,
+                        text: 'Axe des x',
+                        font: {
+                            weight: 'bold',
+                            size: 14
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                },
+                y: {
+                    type: 'linear',
+                    title: {
+                        display: true,
+                        text: 'P(x)',
+                        font: {
+                            weight: 'bold',
+                            size: 14
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(0, 0, 0, 0.1)'
+                    }
+                }
+            }
+        }
+    });
+});
+{% endif %}
+
+// Validation du formulaire
+document.getElementById('newtonForm')?.addEventListener('submit', function(e) {
+    const xInputs = this.querySelectorAll('input[name="x[]"]');
+    const xValues = Array.from(xInputs).map(i => parseFloat(i.value));
+
+    if (new Set(xValues).size !== xValues.length) {
+        e.preventDefault();
+        alert("Erreur : Les valeurs de x doivent être uniques !");
+        return;
+    }
+    
+    if (xValues.length < 2) {
+        e.preventDefault();
+        alert("Erreur : Au moins 2 points sont nécessaires !");
+        return;
+    }
+});
+
+// Fermer le modal en cliquant en dehors
+window.onclick = function(event) {
+    const modal = document.getElementById('calculationModal');
+    if (event.target == modal) {
+        modal.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

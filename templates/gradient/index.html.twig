@@ -1,0 +1,266 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Descente de Gradient{% endblock %}
+
+{% block body %}
+<div class="container method-page method-page-gradient">
+    <div class="page-header">
+        <h1>Descente de Gradient</h1>
+        <p>Méthode itérative pour minimiser une fonction coût J(x) = a₂x² + a₁x + a₀</p>
+    </div>
+
+    <div class="content-grid">
+
+        {# ===== FORMULAIRE ===== #}
+        <div class="input-section">
+
+            {% if error %}
+                <div class="error-message"><strong>Erreur :</strong> {{ error }}</div>
+            {% endif %}
+
+            <form method="post" id="gradientForm" class="points-form">
+                <h2>Paramètres</h2>
+
+                <div class="form-description">
+                    <p>Définissez J(x) = a₂x² + a₁x + a₀ avec a₂ &gt; 0, puis le point de départ et le pas δ.</p>
+                </div>
+
+                <div class="point-row">
+                    <div class="input-group">
+                        <label>a₂ (doit être &gt; 0) :</label>
+                        <input type="number" step="any" name="a2" value="{{ app.request.request.get('a2', 1) }}" required>
+                    </div>
+                    <div class="input-group">
+                        <label>a₁ :</label>
+                        <input type="number" step="any" name="a1" value="{{ app.request.request.get('a1', 0) }}" required>
+                    </div>
+                    <div class="input-group">
+                        <label>a₀ :</label>
+                        <input type="number" step="any" name="a0" value="{{ app.request.request.get('a0', 0) }}" required>
+                    </div>
+                </div>
+
+                <div class="point-row" style="margin-top:0.5rem;">
+                    <div class="input-group">
+                        <label>Point de départ x⁽⁰⁾ :</label>
+                        <input type="number" step="any" name="x0" value="{{ app.request.request.get('x0', 0) }}" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Pas δ (learning rate) :</label>
+                        <input type="number" step="any" name="delta" value="{{ app.request.request.get('delta', 0.3) }}" required>
+                    </div>
+                    <div class="input-group">
+                        <label>Nb max itérations :</label>
+                        <input type="number" name="maxIter" min="1" max="200" value="{{ app.request.request.get('maxIter', 50) }}" required>
+                    </div>
+                </div>
+
+                <div class="form-actions" style="margin-top:1rem;">
+                    <button type="submit" class="btn-primary">▶ Lancer la descente</button>
+                </div>
+            </form>
+
+            {# Tableau des itérations #}
+            {% if iterations|length > 1 %}
+            <div class="points-table-section" style="margin-top:1.5rem;">
+                <h3>Itérations</h3>
+                <div style="max-height:320px;overflow-y:auto;border-radius:0.5rem;border:1px solid #e2e8f0;">
+                    <table class="points-table" style="margin:0;">
+                        <thead>
+                            <tr>
+                                <th>k</th>
+                                <th>x⁽ᵏ⁾</th>
+                                <th>∇J(x⁽ᵏ⁾)</th>
+                                <th>J(x⁽ᵏ⁾)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for it in iterations %}
+                            <tr {% if loop.last %}style="background:#f0fff4;font-weight:600;"{% endif %}>
+                                <td>{{ it.k }}</td>
+                                <td>{{ it.x }}</td>
+                                <td>{{ it.grad }}</td>
+                                <td>{{ it.J }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+
+            <div style="margin-top:1.25rem;">
+                <a href="{{ path('app_cours') }}?section=gradient" class="btn-secondary" style="width:100%;text-align:center;">
+                    Voir le cours de Descente de Gradient
+                </a>
+            </div>
+
+        </div>
+
+        {# ===== RÉSULTATS ===== #}
+        <div class="results-section">
+
+            {% if result %}
+            <div class="results-card">
+                <h2>Résultats</h2>
+
+                <div class="coefficients-list">
+                    <div class="coefficient-item">
+                        <span class="coefficient-label">x* trouvé</span>
+                        <span class="coefficient-value">{{ result.x_final }}</span>
+                    </div>
+                    <div class="coefficient-item">
+                        <span class="coefficient-label">x* exact</span>
+                        <span class="coefficient-value">{{ result.x_star }}</span>
+                    </div>
+                    <div class="coefficient-item">
+                        <span class="coefficient-label">J(x*)</span>
+                        <span class="coefficient-value">{{ result.J_min }}</span>
+                    </div>
+                    <div class="coefficient-item">
+                        <span class="coefficient-label">Itérations</span>
+                        <span class="coefficient-value">{{ result.nb_iter }}</span>
+                    </div>
+                </div>
+
+                <div class="polynomial-section">
+                    <div class="polynomial-display">x⁽ᵏ⁺¹⁾ = x⁽ᵏ⁾ − δ · J'(x⁽ᵏ⁾)</div>
+                </div>
+
+                    <div style="margin-top:1rem;">
+                    <button type="button" class="btn-info" onclick="document.getElementById('stepsModal').style.display='block'">
+                        Voir le détail des calculs
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+
+            {# Modal étapes #}
+            {% if iterations|length > 1 %}
+            <div id="stepsModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h2>Détail des calculs — Descente de Gradient</h2>
+                        <span class="close" onclick="document.getElementById('stepsModal').style.display='none'">&times;</span>
+                    </div>
+                    <div class="modal-body">
+
+                        <div class="calculation-step">
+                            <h4>Formule appliquée à chaque itération</h4>
+                            <div class="formula">x⁽ᵏ⁺¹⁾ = x⁽ᵏ⁾ − δ · J'(x⁽ᵏ⁾) &nbsp;&nbsp; avec &nbsp;&nbsp; J'(x) = 2·a₂·x + a₁</div>
+                        </div>
+
+                        {% for it in iterations %}
+                            {% if not loop.last %}
+                            <div class="calculation-step">
+                                <h4>Itération k = {{ it.k }}</h4>
+                                <div style="background:white;padding:1rem;border-radius:0.375rem;border:1px solid #e2e8f0;">
+                                    <div style="margin:0.75rem 0;"><strong>x⁽{{ it.k }}⁾</strong> = {{ it.x }}</div>
+                                    <div style="margin:0.75rem 0;"><strong>J'(x⁽{{ it.k }}⁾)</strong> = {{ it.grad }}</div>
+                                    <div style="margin:0.75rem 0;"><strong>J(x⁽{{ it.k }}⁾)</strong> = {{ it.J }}</div>
+                                    <div style="margin:0.75rem 0;border-top:1px solid #e2e8f0;padding-top:0.75rem;">
+                                        <strong>x⁽{{ it.k + 1 }}⁾</strong> = {{ it.x }} − δ × {{ it.grad }} = <strong style="color:#667eea;">{{ iterations[loop.index].x }}</strong>
+                                    </div>
+                                </div>
+                            </div>
+                            {% else %}
+                            <div class="calculation-step" style="border-left-color:#4caf50;background:#f0fff4;">
+                                <h4 style="color:#1b6f3c;">Convergence atteinte — k = {{ it.k }}</h4>
+                                <div style="background:white;padding:1rem;border-radius:0.375rem;border:1px solid #c6f6d5;">
+                                    <div style="margin:0.75rem 0;"><strong>x*</strong> ≈ {{ it.x }}</div>
+                                    <div style="margin:0.75rem 0;"><strong>J(x*)</strong> = {{ it.J }}</div>
+                                    <div style="margin:0.75rem 0;"><strong>∇J(x*)</strong> ≈ {{ it.grad }} <em style="color:#666;">(proche de 0)</em></div>
+                                </div>
+                            </div>
+                            {% endif %}
+                        {% endfor %}
+
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if chartData is defined and chartData %}
+            <div class="chart-section">
+                <h3>Convergence</h3>
+                <div class="chart-container">
+                    <canvas id="gradientChart"></canvas>
+                </div>
+                <!-- Légende dupliquée supprimée (affichage géré par le plugin Chart.js) -->
+            </div>
+            {% else %}
+            <div class="placeholder-chart">
+                <div class="placeholder-content">
+                    <h3>Visualisation en attente</h3>
+                    <p>Renseignez les paramètres et lancez la descente</p>
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+<script>
+window.onclick = function(e) {
+    const m = document.getElementById('stepsModal');
+    if (m && e.target === m) m.style.display = 'none';
+};
+</script>
+{% if chartData is defined and chartData %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('gradientChart').getContext('2d');
+    const curveX = {{ chartData.curveX|json_encode|raw }};
+    const curveY = {{ chartData.curveY|json_encode|raw }};
+    const pts    = {{ chartData.points|json_encode|raw }};
+
+    new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'J(x)',
+                    data: curveX.map((x,i) => ({ x, y: curveY[i] })),
+                    borderColor: '#5b4ee6',
+                    backgroundColor: 'rgba(91, 78, 230, 0.12)',
+                    borderWidth: 2.5,
+                    pointRadius: 0,
+                    showLine: true,
+                    fill: true,
+                    tension: 0.3
+                },
+                {
+                    label: 'Itérations',
+                    data: pts.map(p => ({ x: p.x, y: p.y })),
+                    backgroundColor: '#7a67f2',
+                    borderColor: '#fff',
+                    borderWidth: 2,
+                    pointRadius: 6,
+                    pointHoverRadius: 8,
+                    showLine: true,
+                    borderDash: [4,4],
+                    borderColor: '#7a67f2',
+                    tension: 0
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { usePointStyle: true, padding: 20 } },
+                tooltip: { callbacks: { label: c => `(${c.parsed.x.toFixed(4)}, ${c.parsed.y.toFixed(4)})` } }
+            },
+            scales: {
+                x: { type: 'linear', title: { display: true, text: 'x', font: { weight: 'bold' } }, grid: { color: 'rgba(0,0,0,0.07)' } },
+                y: { type: 'linear', title: { display: true, text: 'J(x)', font: { weight: 'bold' } }, grid: { color: 'rgba(0,0,0,0.07)' } }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

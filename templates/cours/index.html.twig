@@ -1,0 +1,564 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Cours — Interpolation Polynomiale{% endblock %}
+
+{% block body %}
+<div class="container">
+
+    {% set section = app.request.query.get('section') %}
+    {% set courseTitle = 'Cours' %}
+    {% if section == 'lagrange' %}
+        {% set courseTitle = 'Cours Lagrange' %}
+    {% elseif section == 'newton' %}
+        {% set courseTitle = 'Cours Newton' %}
+    {% elseif section == 'erreur' %}
+        {% set courseTitle = 'Cours Erreur d\'interpolation' %}
+    {% elseif section == 'moindres' %}
+        {% set courseTitle = 'Cours Moindres Carrés' %}
+    {% elseif section == 'gradient' %}
+        {% set courseTitle = 'Cours Descente de Gradient' %}
+    {% endif %}
+
+    <div class="page-header">
+        <h1>{{ courseTitle }}</h1>
+    </div>
+
+    {# ===== SÉLECTION MÉTHODE ===== #}
+    <div id="cours-accueil" class="cours-card" style="text-align:center;padding:3rem;">
+        <h2 style="color:#667eea;margin-bottom:1rem;">Choisissez un cours</h2>
+        <p style="color:#718096;">Utilisez le menu <strong>Cours ▾</strong> dans la barre de navigation pour sélectionner un cours.</p>
+    </div>
+
+    {# ==================== LAGRANGE ==================== #}
+    <div id="method-lagrange" class="method-block" style="display:none;">
+        <div class="cours-tabs" style="margin-bottom:1.5rem;">
+            <button class="tab-btn active" onclick="showTab('lagrange','cours', this)">Cours</button>
+            <button class="tab-btn" onclick="showTab('lagrange','exercice', this)">Exercice</button>
+        </div>
+
+        {# Cours Lagrange #}
+        <div id="lagrange-cours" class="tab-content active">
+
+            <div class="cours-card">
+                <h2>1. Polynômes d'interpolation de Lagrange</h2>
+                <p>Soient <strong>n+1 points</strong> (xᵢ, yᵢ)<sub>0≤i≤n</sub> tels que xᵢ ≠ xⱼ pour tout i ≠ j.</p>
+                <div class="cours-theorem">
+                    Il existe un <strong>unique polynôme</strong> Pₙ ∈ ℝₙ[X] vérifiant :<br><br>
+                    Pₙ(xᵢ) = yᵢ &nbsp; ∀i ∈ {0, …, n}
+                </div>
+            </div>
+
+            <div class="cours-card">
+                <h2>2. Formule</h2>
+                <div class="cours-formula">Pₙ(x) = Σᵢ₌₀ⁿ yᵢ · Lᵢ(x)</div>
+                <p style="margin-top:0.75rem;">où les <strong>polynômes de base</strong> sont :</p>
+                <div class="cours-formula">Lᵢ(x) = ∏<sub>j≠i</sub> (x − xⱼ) / (xᵢ − xⱼ)</div>
+                <div class="cours-note">La famille {L₀, …, Lₙ} est une <strong>base de ℝₙ[X]</strong>.</div>
+            </div>
+
+            <div class="cours-card">
+                <h2>3. Propriété fondamentale</h2>
+                <div class="cours-formula">Lᵢ(xⱼ) = δᵢⱼ = { 1 si i=j &nbsp;/&nbsp; 0 si i≠j }</div>
+                <p style="margin-top:0.75rem;">Cette propriété garantit que Pₙ(xᵢ) = yᵢ pour tout i.</p>
+            </div>
+
+            <div class="cours-card cours-warning">
+                <h2>Inconvénient majeur</h2>
+                <p>Si on ajoute un point (xₙ₊₁, yₙ₊₁), il est <strong>impossible de déduire Pₙ₊₁ de Pₙ</strong>. Tous les calculs sont à refaire de zéro.</p>
+                <p style="margin-top:0.75rem;">→ Pour combler cette lacune : <strong>méthode de Newton</strong>.</p>
+            </div>
+
+        </div>
+
+        {# Exercice Lagrange #}
+        <div id="lagrange-exercice" class="tab-content">
+
+            <div class="cours-card">
+                <h2>Exercice</h2>
+                <p>Soit f une fonction vérifiant :</p>
+                <table class="points-table" style="max-width:420px;margin:1.25rem 0;">
+                    <thead><tr><th>xᵢ</th><th>x₀ = −1</th><th>x₁ = 0</th><th>x₂ = 1</th></tr></thead>
+                    <tbody><tr><td><strong>f(xᵢ)</strong></td><td>2</td><td>1</td><td>−1</td></tr></tbody>
+                </table>
+                <ol class="cours-questions">
+                    <li>Justifier l'existence d'un unique polynôme P ∈ ℝ₂[X].</li>
+                    <li>Déterminer la base de Lagrange pour x₀, x₁, x₂.</li>
+                    <li>Déterminer l'expression du polynôme P.</li>
+                    <li>En déduire une approximation de f(0.5).</li>
+                </ol>
+                <button class="btn-primary" onclick="toggleCorr('corr-lagrange', 'btn-corr-lagrange')" id="btn-corr-lagrange" style="margin-top:1.5rem;">
+                    Afficher la correction
+                </button>
+            </div>
+
+                <div id="corr-lagrange" style="display:none;">
+                <div class="cours-card">
+                    <h2>Correction</h2>
+
+                    <div class="correction-step">
+                        <h3>1. Existence et unicité</h3>
+                        <p>x₀ ≠ x₁, x₁ ≠ x₂, x₀ ≠ x₂ → abscisses distinctes → il existe un <strong>unique P ∈ ℝ₂[X]</strong>.</p>
+                    </div>
+
+                    <div class="correction-step">
+                        <h3>2. Base de Lagrange</h3>
+                        <div class="cours-formula">L₀(x) = (x−0)(x−1) / (−1−0)(−1−1) = x(x−1) / 2</div>
+                        <div class="cours-formula">L₁(x) = (x+1)(x−1) / (0+1)(0−1) = −(x+1)(x−1)</div>
+                        <div class="cours-formula">L₂(x) = (x+1)(x−0) / (1+1)(1−0) = x(x+1) / 2</div>
+                    </div>
+
+                    <div class="correction-step">
+                        <h3>3. Polynôme P₂(x)</h3>
+                        <div class="cours-formula">P₂(x) = 2·L₀(x) + 1·L₁(x) + (−1)·L₂(x)</div>
+                        <div class="cours-formula">= 2·x(x−1)/2 − (x+1)(x−1) − x(x+1)/2</div>
+                        <div class="cours-formula" style="background:#e8f5e9;border-color:#4caf50;font-weight:700;">
+                            P₂(x) = −½x² − 3/2·x + 1
+                        </div>
+                    </div>
+
+                    <div class="correction-step">
+                        <h3>4. Approximation de f(0.5)</h3>
+                        <div class="cours-formula">P₂(0.5) = −½(0.25) − 3/2(0.5) + 1 = −0.125 − 0.75 + 1</div>
+                        <div class="cours-formula" style="background:#e8f5e9;border-color:#4caf50;font-weight:700;font-size:1.15rem;">
+                            f(0.5) ≈ 0.125
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    {# ==================== NEWTON ==================== #}
+    <div id="method-newton" class="method-block" style="display:none;">
+        <div class="cours-tabs" style="margin-bottom:1.5rem;">
+            <button class="tab-btn active" onclick="showTab('newton','cours', this)">Cours</button>
+            <button class="tab-btn" onclick="showTab('newton','exercice', this)">Exercice</button>
+        </div>
+
+        {# Cours Newton #}
+        <div id="newton-cours" class="tab-content active">
+
+            <div class="cours-card">
+                <h2>1. Polynôme d'interpolation de Newton</h2>
+                <p>Soient <strong>n+1 points</strong> (xᵢ, yᵢ)<sub>0≤i≤n</sub> avec xᵢ ≠ xⱼ pour i ≠ j.</p>
+                <div class="cours-theorem">
+                    Il existe un <strong>unique polynôme</strong> Pₙ ∈ ℝₙ[X] vérifiant Pₙ(xᵢ) = yᵢ ∀i.
+                </div>
+                <p style="margin-top:1rem;">Le polynôme s'exprime dans la <strong>base de Newton</strong> :</p>
+                <div class="cours-formula">
+                    Pₙ(x) = β₀·ω₀ + β₁(x−x₀) + β₂(x−x₀)(x−x₁) + … + βₙ(x−x₀)…(x−xₙ₋₁)
+                </div>
+                <p style="margin-top:0.75rem;">avec ω₀ = 1 et ωᵢ(x) = ∏<sub>j=0</sub><sup>i−1</sup>(x − xⱼ) pour i ≥ 1.</p>
+                <div class="cours-note">La famille {ω₀, ω₁, …, ωₙ} est une <strong>base de ℝₙ[X]</strong>.</div>
+            </div>
+
+            <div class="cours-card">
+                <h2>2. Différences divisées</h2>
+                <p>Les coefficients βᵢ sont calculés par la méthode des <strong>différences divisées</strong> :</p>
+
+                <div class="cours-formula"><strong>Ordre 0 :</strong> [yᵢ] = yᵢ</div>
+
+                <div class="cours-formula"><strong>Ordre 1 :</strong> [yᵢ₋₁, yᵢ] = (yᵢ − yᵢ₋₁) / (xᵢ − xᵢ₋₁)</div>
+
+                <div class="cours-formula">
+                    <strong>Ordre n (récurrence) :</strong><br>
+                    [y₀, y₁, …, yₙ] = ([y₁, …, yₙ] − [y₀, …, yₙ₋₁]) / (xₙ − x₀)
+                </div>
+
+                <p style="margin-top:0.75rem;">Exemple pour n=2 :</p>
+                <div class="cours-formula">
+                    [y₀, y₁, y₂] = ([y₁,y₂] − [y₀,y₁]) / (x₂ − x₀)
+                    = ((y₂−y₁)/(x₂−x₁) − (y₁−y₀)/(x₁−x₀)) / (x₂ − x₀)
+                </div>
+            </div>
+
+            <div class="cours-card">
+                <h2>3. Calcul des βᵢ</h2>
+                <div class="cours-formula">β₀ = [y₀] = y₀ &nbsp;&nbsp; (différence divisée d'ordre 0)</div>
+                <div class="cours-formula">β₁ = [y₀, y₁] = (y₁ − y₀) / (x₁ − x₀) &nbsp;&nbsp; (ordre 1)</div>
+                <div class="cours-formula">βᵢ = [y₀, y₁, …, yᵢ] &nbsp;&nbsp; (différence divisée d'ordre i)</div>
+            </div>
+
+            <div class="cours-card cours-success">
+                <h2>Avantage majeur</h2>
+                <p>Si on ajoute un nouveau point (xₙ₊₁, yₙ₊₁), on peut <strong>déduire Pₙ₊₁ de Pₙ</strong> sans tout recalculer :</p>
+                <div class="cours-formula" style="background:#e8f5e9;border-color:#4caf50;">
+                    Pₙ₊₁(x) = Pₙ(x) + βₙ₊₁ · (x−x₀)(x−x₁)…(x−xₙ)
+                </div>
+                <p style="margin-top:0.75rem;">C'est l'avantage principal de Newton sur Lagrange.</p>
+            </div>
+
+        </div>
+
+        {# Exercice Newton #}
+        <div id="newton-exercice" class="tab-content">
+
+            <div class="cours-card">
+                <h2>Exercice</h2>
+                <p>Retrouver le polynôme d'interpolation de f en utilisant la <strong>méthode de Newton</strong> :</p>
+                <table class="points-table" style="max-width:420px;margin:1.25rem 0;">
+                    <thead><tr><th>xᵢ</th><th>x₀ = −1</th><th>x₁ = 0</th><th>x₂ = 1</th></tr></thead>
+                    <tbody><tr><td><strong>f(xᵢ)</strong></td><td>2</td><td>1</td><td>−1</td></tr></tbody>
+                </table>
+                <ol class="cours-questions">
+                    <li>Calculer les différences divisées β₀, β₁, β₂.</li>
+                    <li>Écrire le polynôme P₂(x) dans la base de Newton.</li>
+                    <li>Développer P₂(x) et vérifier qu'on retrouve le même résultat qu'avec Lagrange.</li>
+                </ol>
+                <button class="btn-primary" onclick="toggleCorr('corr-newton', 'btn-corr-newton')" id="btn-corr-newton" style="margin-top:1.5rem;">
+                    Afficher la correction
+                </button>
+            </div>
+
+                <div id="corr-newton" style="display:none;">
+                <div class="cours-card">
+                    <h2>Correction</h2>
+
+                    <div class="correction-step">
+                        <h3>1. Calcul des différences divisées</h3>
+                        <div class="cours-formula">β₀ = [y₀] = y₀ = 2</div>
+                        <div class="cours-formula">
+                            β₁ = [y₀, y₁] = (y₁ − y₀) / (x₁ − x₀) = (1 − 2) / (0 − (−1)) = −1/1 = −1
+                        </div>
+                        <div class="cours-formula">
+                            [y₁, y₂] = (y₂ − y₁) / (x₂ − x₁) = (−1 − 1) / (1 − 0) = −2
+                        </div>
+                        <div class="cours-formula">
+                            β₂ = [y₀, y₁, y₂] = ([y₁,y₂] − [y₀,y₁]) / (x₂ − x₀) = (−2 − (−1)) / (1 − (−1)) = −1/2
+                        </div>
+                    </div>
+
+                    <div class="correction-step">
+                        <h3>2. Polynôme dans la base de Newton</h3>
+                        <div class="cours-formula">
+                            P₂(x) = β₀ + β₁(x − x₀) + β₂(x − x₀)(x − x₁)
+                        </div>
+                        <div class="cours-formula">
+                            P₂(x) = 2 + (−1)(x + 1) + (−½)(x + 1)(x − 0)
+                        </div>
+                        <div class="cours-formula">
+                            P₂(x) = 2 − (x + 1) − ½·x(x + 1)
+                        </div>
+                    </div>
+
+                    <div class="correction-step">
+                        <h3>3. Forme développée</h3>
+                        <div class="cours-formula">
+                            = 2 − x − 1 − ½x² − ½x = −½x² − 3/2·x + 1
+                        </div>
+                        <div class="cours-formula" style="background:#e8f5e9;border-color:#4caf50;font-weight:700;font-size:1.15rem;">
+                            P₂(x) = −½x² − 3/2·x + 1 ✓ (même résultat que Lagrange)
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    {# ==================== MOINDRES CARRÉS ==================== #}
+    <div id="method-moindres" class="method-block" style="display:none;">
+        <div class="cours-tabs" style="margin-bottom:1.5rem;">
+            <button class="tab-btn active" onclick="showTab('moindres','cours', this)">Cours</button>
+            <button class="tab-btn" onclick="showTab('moindres','exercice', this)">Exercice</button>
+        </div>
+
+        <div id="moindres-cours" class="tab-content active">
+
+            <div class="cours-card">
+                <h2>1. Principe des Moindres Carrés</h2>
+                <p>On cherche un polynôme P(x) = λ₀ + λ₁x qui <strong>minimise les résidus</strong> eᵢ = P(xᵢ) − yᵢ.</p>
+                <div class="cours-theorem">
+                    Minimiser F(Λ) = ‖ε‖² = e₀² + e₁² + … + eₙ²<br><br>
+                    où Λ = (λ₀, λ₁)ᵀ et ε = AΛ − Y
+                </div>
+            </div>
+
+            <div class="cours-card">
+                <h2>2. Formulation matricielle</h2>
+                <p>Le système s'écrit : <strong>ε = AΛ − Y</strong> avec :</p>
+                <div class="cours-formula">
+                    A = [ 1  x₀ ; 1  x₁ ; … ; 1  xₙ ] &nbsp;&nbsp; Λ = (λ₀, λ₁)ᵀ &nbsp;&nbsp; Y = (y₀, …, yₙ)ᵀ
+                </div>
+                <p style="margin-top:0.75rem;">La condition ∇F(Λ) = 0 donne les <strong>équations normales</strong> :</p>
+                <div class="cours-formula">ᵀA · A · Λ = ᵀA · Y</div>
+                <div class="cours-formula" style="background:#e8f5e9;border-color:#4caf50;font-weight:700;">
+                    Λ = (ᵀA · A)⁻¹ · ᵀA · Y
+                </div>
+            </div>
+
+            <div class="cours-card">
+                <h2>3. Formule des moyennes</h2>
+                <p>On peut aussi calculer directement :</p>
+                <div class="cours-formula">λ₁ = (X̄Ȳ − X̄·Ȳ) / (X̄² − X̄²) &nbsp;&nbsp; λ₀ = Ȳ − λ₁·X̄</div>
+                <p style="margin-top:0.75rem;">avec X̄ = Σxᵢ/(n+1), Ȳ = Σyᵢ/(n+1), X̄Y = Σxᵢyᵢ/(n+1), X̄² = Σxᵢ²/(n+1).</p>
+            </div>
+
+        </div>
+
+        <div id="moindres-exercice" class="tab-content">
+            <div class="cours-card">
+                <h2>Exercice</h2>
+                <p>Trouver la droite de régression des points suivants au sens des moindres carrés :</p>
+                <table class="points-table" style="max-width:420px;margin:1.25rem 0;">
+                    <thead><tr><th>xᵢ</th><th>x₀ = −1</th><th>x₁ = 0</th><th>x₂ = 1</th></tr></thead>
+                    <tbody><tr><td><strong>yᵢ</strong></td><td>2</td><td>1</td><td>−1</td></tr></tbody>
+                </table>
+                <button class="btn-primary" onclick="toggleCorr('corr-moindres','btn-corr-moindres')" id="btn-corr-moindres" style="margin-top:1.5rem;">
+                    Afficher la correction
+                </button>
+            </div>
+
+            <div id="corr-moindres" style="display:none;">
+                <div class="cours-card">
+                    <h2>Correction</h2>
+
+                    <div class="correction-step">
+                        <h3>1. Matrice A</h3>
+                        <div class="cours-formula">A = [ 1  −1 ; 1  0 ; 1  1 ]</div>
+                    </div>
+
+                    <div class="correction-step">
+                        <h3>2. Calcul de ᵀA·A et ᵀA·Y</h3>
+                        <div class="cours-formula">ᵀA·A = [ 3  0 ; 0  2 ]</div>
+                        <div class="cours-formula">ᵀA·Y = [ 2 ; −3 ]</div>
+                    </div>
+
+                    <div class="correction-step">
+                        <h3>3. Inversion et solution</h3>
+                        <div class="cours-formula">(ᵀA·A)⁻¹ = [ 1/3  0 ; 0  1/2 ]</div>
+                        <div class="cours-formula">Λ = (ᵀA·A)⁻¹ · ᵀA·Y = [ 2/3 ; −3/2 ]</div>
+                        <div class="cours-formula" style="background:#e8f5e9;border-color:#4caf50;font-weight:700;">
+                            P(x) = 2/3 − 3/2·x
+                        </div>
+                    </div>
+
+                    <div class="correction-step">
+                        <h3>4. Vérification par les moyennes</h3>
+                        <div class="cours-formula">X̄ = 0, Ȳ = 2/3, X̄Y = −1, X̄² = 2/3</div>
+                        <div class="cours-formula">λ₁ = (−1 − 0·2/3) / (2/3 − 0) = −3/2 ✓</div>
+                        <div class="cours-formula">λ₀ = 2/3 − (−3/2)·0 = 2/3 ✓</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ==================== DESCENTE DE GRADIENT ==================== #}
+    <div id="method-gradient" class="method-block" style="display:none;">
+        <div class="cours-tabs" style="margin-bottom:1.5rem;">
+            <button class="tab-btn active" onclick="showTab('gradient','cours', this)">Cours</button>
+            <button class="tab-btn" onclick="showTab('gradient','exercice', this)">Exercice</button>
+        </div>
+
+        <div id="gradient-cours" class="tab-content active">
+
+            <div class="cours-card">
+                <h2>1. Motivation — Analogie en montagne</h2>
+                <p>
+                    Imaginez que vous êtes perdu en montagne et que vous voulez atteindre le point le plus bas de la vallée.
+                    La stratégie optimale :
+                </p>
+                <ol style="padding-left:1.5rem;line-height:2.2;color:#2d3748;margin-top:0.75rem;">
+                    <li>Cherchez la direction où la pente <strong>descend le plus fort</strong> depuis votre position.</li>
+                    <li>Suivez cette direction sur une certaine distance.</li>
+                    <li>Répétez jusqu'à converger vers le minimum.</li>
+                </ol>
+                <div class="cours-note">
+                    ⇒ C'est le principe de la <strong>méthode de descente de gradient</strong> : une méthode itérative pour trouver le minimum d'une fonction.
+                </div>
+            </div>
+
+            <div class="cours-card">
+                <h2>2. Problème d'optimisation</h2>
+                <p>On cherche :</p>
+                <div class="cours-theorem">
+                    Trouver x* ∈ ℝⁿ tel que J(x*) = min<sub>x∈ℝⁿ</sub> J(x)
+                </div>
+                <p style="margin-top:0.75rem;">
+                    J : ℝⁿ → ℝ est la <strong>fonction objectif (coût)</strong>. Toute solution x* s'appelle <strong>solution optimale</strong>.
+                </p>
+                <div class="cours-note">
+                    Le problème des moindres carrés revient à minimiser :<br>
+                    J(Λ) = Σᵢ (yᵢ − Pₙ(xᵢ))²
+                </div>
+            </div>
+
+            <div class="cours-card">
+                <h2>3. Algorithme de descente de gradient</h2>
+                <ol style="padding-left:1.5rem;line-height:2.4;color:#2d3748;">
+                    <li><strong>Initialisation :</strong> choisir un point de départ x⁽⁰⁾ arbitraire.</li>
+                    <li><strong>Calcul du gradient :</strong> ∇J(x) = J'(x) pour n=1, ou (∂J/∂x₁, ∂J/∂x₂) pour n=2.</li>
+                    <li><strong>Mise à jour :</strong> x⁽ᵏ⁺¹⁾ = x⁽ᵏ⁾ − δ · ∇J(x⁽ᵏ⁾)</li>
+                </ol>
+                <div class="cours-formula" style="background:#e8f5e9;border-color:#4caf50;font-weight:700;font-size:1.1rem;">
+                    x⁽ᵏ⁺¹⁾ = x⁽ᵏ⁾ − δ · ∇J(x⁽ᵏ⁾)
+                </div>
+                <p style="margin-top:0.75rem;">où <strong>δ</strong> est le <strong>pas d'apprentissage (learning rate)</strong>.</p>
+            </div>
+
+            <div class="cours-card cours-warning">
+                <h2>Choix du pas δ</h2>
+                <ul style="padding-left:1.5rem;line-height:2.2;color:#2d3748;">
+                    <li><strong>δ trop grand :</strong> la suite diverge, on "saute" par-dessus le minimum.</li>
+                    <li><strong>δ trop petit :</strong> convergence très lente.</li>
+                    <li><strong>δ bien choisi :</strong> convergence rapide vers le minimum.</li>
+                </ul>
+            </div>
+
+        </div>
+
+        <div id="gradient-exercice" class="tab-content">
+            <div class="cours-card">
+                <h2>Exercice</h2>
+                <p>Soit J(x) = x² − 4x + 5. Appliquer 3 itérations de la descente de gradient avec x⁽⁰⁾ = 0 et δ = 0.3.</p>
+                <ol class="cours-questions">
+                    <li>Calculer ∇J(x) = J'(x).</li>
+                    <li>Effectuer 3 itérations et donner x⁽¹⁾, x⁽²⁾, x⁽³⁾.</li>
+                    <li>Vers quelle valeur la suite converge-t-elle ?</li>
+                </ol>
+                <button class="btn-primary" onclick="toggleCorr('corr-gradient','btn-corr-gradient')" id="btn-corr-gradient" style="margin-top:1.5rem;">
+                    Afficher la correction
+                </button>
+            </div>
+
+            <div id="corr-gradient" style="display:none;">
+                <div class="cours-card">
+                    <h2>Correction</h2>
+
+                    <div class="correction-step">
+                        <h3>1. Gradient</h3>
+                        <div class="cours-formula">J'(x) = 2x − 4</div>
+                        <p>Le minimum exact est en x* = 2 (J'(2) = 0).</p>
+                    </div>
+
+                    <div class="correction-step">
+                        <h3>2. Itérations (δ = 0.3, x⁽⁰⁾ = 0)</h3>
+                        <div class="cours-formula">x⁽¹⁾ = 0 − 0.3·(2·0 − 4) = 0 + 1.2 = 1.2</div>
+                        <div class="cours-formula">x⁽²⁾ = 1.2 − 0.3·(2·1.2 − 4) = 1.2 − 0.3·(−1.6) = 1.2 + 0.48 = 1.68</div>
+                        <div class="cours-formula">x⁽³⁾ = 1.68 − 0.3·(2·1.68 − 4) = 1.68 − 0.3·(−0.64) = 1.68 + 0.192 = 1.872</div>
+                    </div>
+
+                    <div class="correction-step">
+                        <h3>3. Convergence</h3>
+                        <div class="cours-formula" style="background:#e8f5e9;border-color:#4caf50;font-weight:700;">
+                            La suite converge vers x* = 2 (minimum de J)
+                        </div>
+                        <p style="margin-top:0.5rem;">J(2) = 4 − 8 + 5 = 1 (valeur minimale).</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# ==================== ERREUR D'INTERPOLATION ==================== #}
+    <div id="method-erreur" class="method-block" style="display:none;">
+        <div class="cours-tabs" style="margin-bottom:1.5rem;">
+            <button class="tab-btn active" onclick="showTab('erreur','cours', this)">Cours</button>
+            <button class="tab-btn" onclick="showTab('erreur','exercice', this)">Exercice</button>
+        </div>
+
+        <div id="erreur-cours" class="tab-content active">
+            <div class="cours-card">
+                <h2>1. Estimation de l'erreur d'interpolation</h2>
+                <p>Dans le cas où les points (xᵢ, yᵢ) sont définis à partir d'une fonction f (f(xᵢ) = yᵢ), le résultat suivant permet d'estimer l'erreur en tout point.</p>
+            </div>
+            <div class="cours-card">
+                <h2>2. Théorème</h2>
+                <p>Soient x₀ &lt; x₁ &lt; … &lt; xₙ des réels, f de classe <strong>C<sup>n+1</sup></strong> sur [x₀, xₙ] et Pₙ le polynôme d'interpolation.</p>
+                <div class="cours-theorem">
+                    Eₙ(x) = |f(x) − Pₙ(x)| ≤ max<sub>t∈[x₀,xₙ]</sub> |f<sup>(n+1)</sup>(t)| / (n+1)! · ∏ᵢ₌₀ⁿ |x − xᵢ|
+                </div>
+            </div>
+            <div class="cours-card">
+                <h2>3. Interprétation</h2>
+                <ul style="padding-left:1.5rem;line-height:2.2;color:#2d3748;">
+                    <li><strong>Régularité de f</strong> : max |f<sup>(n+1)</sup>(t)| — plus f est régulière, plus l'erreur est petite.</li>
+                    <li><strong>Degré n</strong> : (n+1)! au dénominateur — augmenter n réduit l'erreur.</li>
+                    <li><strong>Position de x</strong> par rapport aux nœuds : ∏|x − xᵢ|.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div id="erreur-exercice" class="tab-content">
+            <div class="cours-card">
+                <h2>Exercice</h2>
+                <p>Soit f définie sur [0, 2/3] par <strong>f(x) = e<sup>2x</sup></strong>, les points x₀=0, x₁=1/3, x₂=2/3 et P₂ le polynôme d'interpolation.</p>
+                <p style="margin-top:0.75rem;"><strong>Estimer l'erreur en tout point x ∈ [x₀, x₂].</strong></p>
+                <button class="btn-primary" onclick="toggleCorr('corr-erreur','btn-corr-erreur')" id="btn-corr-erreur" style="margin-top:1.5rem;">
+                    Afficher la correction
+                </button>
+            </div>
+            <div id="corr-erreur" style="display:none;">
+                <div class="cours-card">
+                    <h2>Correction</h2>
+                    <div class="correction-step">
+                        <h3>1. Application du théorème</h3>
+                        <div class="cours-formula">E(x) ≤ max<sub>t∈[0,2/3]</sub> |f<sup>(3)</sup>(t)| / 3! · |x| · |x−1/3| · |x−2/3|</div>
+                    </div>
+                    <div class="correction-step">
+                        <h3>2. Dérivées de f(x) = e<sup>2x</sup></h3>
+                        <div class="cours-formula">f'(t) = 2e<sup>2t</sup> &nbsp;|&nbsp; f''(t) = 4e<sup>2t</sup> &nbsp;|&nbsp; f<sup>(3)</sup>(t) = 8e<sup>2t</sup></div>
+                    </div>
+                    <div class="correction-step">
+                        <h3>3. Maximum sur [0, 2/3]</h3>
+                        <div class="cours-formula">max |f<sup>(3)</sup>(t)| = 8e<sup>4/3</sup> (atteint en t = 2/3)</div>
+                    </div>
+                    <div class="correction-step">
+                        <h3>4. Borne finale</h3>
+                        <div class="cours-formula" style="background:#e8f5e9;border-color:#4caf50;font-weight:700;">
+                            E(x) ≤ (4e<sup>4/3</sup>/3) · |x| · |x−1/3| · |x−2/3|
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block javascripts %}
+<script>
+function showMethod(name, btn) {
+    document.querySelectorAll('.method-block').forEach(b => b.style.display = 'none');
+    document.getElementById('method-' + name).style.display = 'block';
+    btn.closest('.cours-tabs').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function showTab(method, name, btn) {
+    const block = document.getElementById('method-' + method);
+    block.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById(method + '-' + name).classList.add('active');
+    btn.closest('.cours-tabs').querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function toggleCorr(divId, btnId) {
+    const div = document.getElementById(divId);
+    const btn = document.getElementById(btnId);
+    if (div.style.display === 'none') {
+        div.style.display = 'block';
+        btn.textContent = 'Masquer la correction';
+    } else {
+        div.style.display = 'none';
+        btn.textContent = 'Afficher la correction';
+    }
+}
+
+// Ouvrir le bon onglet selon le hash (#lagrange, #newton, etc.)
+document.addEventListener('DOMContentLoaded', function() {
+    const valid = ['lagrange', 'newton', 'erreur', 'moindres', 'gradient'];
+    const section = '{{ section }}';
+
+    if (section && valid.includes(section)) {
+        document.getElementById('cours-accueil').style.display = 'none';
+        document.querySelectorAll('.method-block').forEach(b => b.style.display = 'none');
+        document.getElementById('method-' + section).style.display = 'block';
+    }
+});
+</script>
+{% endblock %}

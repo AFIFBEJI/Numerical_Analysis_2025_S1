@@ -1,0 +1,352 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Lagrange - Interpolation{% endblock %}
+
+{% block body %}
+<div class="container method-page method-page-lagrange">
+    <div class="page-header">
+        <h1>Interpolation de Lagrange</h1>
+        <p>Construction du polynôme interpolateur à partir des polynômes de base de Lagrange</p>
+    </div>
+
+    <div class="content-grid">
+
+        {# ===== COLONNE GAUCHE : formulaire ===== #}
+        <div class="input-section">
+
+            {% if error is defined and error %}
+                <div class="error-message"><strong>Erreur :</strong> {{ error }}</div>
+            {% endif %}
+
+            {# Étape 1 : nombre de points #}
+            <form method="post" class="points-form">
+                <h2>Nombre de points</h2>
+                <div class="form-description">
+                    <p>Choisissez le nombre de points d'interpolation (minimum 2).</p>
+                </div>
+                <div class="point-row">
+                    <div class="input-group">
+                        <label for="nbPoints">Nombre de points :</label>
+                        <input type="number" name="nbPoints" id="nbPoints" min="2" value="{{ nbPoints|default(2) }}" required>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Valider</button>
+                </div>
+            </form>
+
+            {# Étape 2 : saisie des points #}
+            {% if nbPoints %}
+            <form method="post" id="lagrangeForm" class="points-form" style="margin-top: 1.5rem;">
+                <h2>Saisie des points</h2>
+                <div class="form-description">
+                    <p>Entrez les coordonnées des {{ nbPoints }} points. Les valeurs de x doivent être uniques.</p>
+                </div>
+                <input type="hidden" name="nbPoints" value="{{ nbPoints }}">
+                <div class="points-container">
+                    {% for i in 0..(nbPoints-1) %}
+                        <div class="point-row">
+                            <div class="input-group">
+                                <label>x{{ i }} :</label>
+                                <input type="number" step="any" name="x[]" required value="{{ pointsX[i]|default('') }}">
+                            </div>
+                            <div class="input-group">
+                                <label>y{{ i }} :</label>
+                                <input type="number" step="any" name="y[]" required value="{{ pointsY[i]|default('') }}">
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+                <div class="form-actions">
+                    <button type="submit" class="btn-primary">Calculer</button>
+                </div>
+            </form>
+            {% endif %}
+
+            {# Table des points #}
+            {% if pointsX is not empty and pointsY is not empty %}
+                <div class="points-table-section">
+                    <h3>Points saisis</h3>
+                    <table class="points-table">
+                        <thead>
+                            <tr>
+                                <th>i</th>
+                                {% for xval in pointsX %}<th>{{ loop.index0 }}</th>{% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>x</strong></td>
+                                {% for xval in pointsX %}<td>{{ xval }}</td>{% endfor %}
+                            </tr>
+                            <tr>
+                                <td><strong>f(x)</strong></td>
+                                {% for yval in pointsY %}<td>{{ yval }}</td>{% endfor %}
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            {% endif %}
+
+            <div style="margin-top: 1.25rem;">
+                <a href="{{ path('app_cours') }}?section=lagrange" class="btn-secondary" style="width:100%;text-align:center;">
+                    Voir le cours de Lagrange
+                </a>
+            </div>
+
+        </div>
+
+        {# ===== COLONNE DROITE : résultats ===== #}
+        <div class="results-section">
+
+            {% if result %}
+                <div class="results-card">
+                    <h2>Résultats de l'interpolation</h2>
+
+                    <div class="coefficients-header">
+                        <h3>Coefficients βᵢ = yᵢ / ∏(xᵢ−xⱼ)</h3>
+                        <button type="button" onclick="document.getElementById('stepsModal').style.display='block'" class="btn-info">
+                            Voir les étapes
+                        </button>
+                    </div>
+
+                    <div class="coefficients-list">
+                        {% for beta in result %}
+                            <div class="coefficient-item">
+                                <span class="coefficient-label">β{{ loop.index0 }}</span>
+                                <span class="coefficient-value">{{ beta }}</span>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    {% if polynomial %}
+                        <div class="polynomial-section">
+                            <h3>Polynôme interpolateur</h3>
+                            <div class="polynomial-display">P(x) = {{ polynomial|raw }}</div>
+                        </div>
+                    {% endif %}
+                </div>
+            {% endif %}
+
+            {# Graphique #}
+            {% if chartData is defined and chartData %}
+                <div class="chart-section">
+                    <h3>Visualisation graphique</h3>
+                    <div class="chart-container">
+                        <canvas id="lagrangeChart"></canvas>
+                    </div>
+                    <!-- Légende dupliquée supprimée (affichage géré par Chart.js) -->
+                </div>
+            {% else %}
+                <div class="placeholder-chart">
+                    <div class="placeholder-content">
+                        <h3>Visualisation en attente</h3>
+                        <p>Entrez des points et cliquez sur "Calculer" pour voir le graphique</p>
+                    </div>
+                </div>
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+
+{# ===== MODAL ÉTAPES DE CALCUL ===== #}
+{% if steps is defined and steps %}
+<div id="stepsModal" class="modal">
+        <div class="modal-content">
+        <div class="modal-header">
+            <h2>Étapes de calcul — Méthode de Lagrange</h2>
+            <span class="close" onclick="document.getElementById('stepsModal').style.display='none'">&times;</span>
+        </div>
+        <div class="modal-body">
+
+            <div class="calculation-step">
+                <h4>1. Points d'interpolation</h4>
+                <div class="points-display">
+                    {% for i in 0..(pointsX|length-1) %}
+                        <span class="point-item">P{{ i }} = ({{ pointsX[i] }}, {{ pointsY[i] }})</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="calculation-step">
+                <h4>2. Polynômes de base de Lagrange Lᵢ(x)</h4>
+                <p style="margin-bottom:0.75rem;color:#555;">
+                    Lᵢ(x) = ∏<sub>j≠i</sub> (x − xⱼ) / (xᵢ − xⱼ)
+                </p>
+                {% for i, li in steps.Li %}
+                    <div class="formula">
+                        L{{ i }}(x) = {{ li.num }} / {{ li.den }}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="calculation-step">
+                <h4>3. Coefficients βᵢ = yᵢ / ∏(xᵢ − xⱼ)</h4>
+                {% for i, li in steps.Li %}
+                    <div class="formula">
+                        β{{ i }} = {{ li.yi }} / {{ li.den }} = {{ li.beta }}
+                    </div>
+                {% endfor %}
+            </div>
+
+            <div class="calculation-step">
+                <h4>4. Polynôme interpolateur</h4>
+                <p style="margin-bottom:0.75rem;color:#555;">
+                    P(x) = Σ βᵢ · ∏<sub>j≠i</sub>(x − xⱼ) = Σ yᵢ · Lᵢ(x)
+                </p>
+                {% if polynomial %}
+                    <div class="final-result">P(x) = {{ polynomial|raw }}</div>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# ===== MODAL COURS ===== #}
+<div id="coursModal" class="modal">
+        <div class="modal-content">
+        <div class="modal-header">
+            <h2>Cours — Interpolation de Lagrange</h2>
+            <span class="close" onclick="document.getElementById('coursModal').style.display='none'">&times;</span>
+        </div>
+        <div class="modal-body">
+
+            <div class="calculation-step">
+                <h4>Définition</h4>
+                <p>
+                    Soient <strong>n+1 points</strong> (xᵢ, yᵢ) avec xᵢ ≠ xⱼ pour i ≠ j.<br><br>
+                    Il existe un <strong>unique polynôme</strong> Pₙ ∈ ℝₙ[X] vérifiant Pₙ(xᵢ) = yᵢ pour tout i ∈ {0, …, n}.
+                </p>
+            </div>
+
+            <div class="calculation-step">
+                <h4>Formule</h4>
+                <div class="formula">Pₙ(x) = Σᵢ yᵢ · Lᵢ(x)</div>
+                <p style="margin-top:0.5rem;">où les polynômes de base sont :</p>
+                <div class="formula">Lᵢ(x) = ∏<sub>j≠i</sub> (x − xⱼ) / (xᵢ − xⱼ)</div>
+                <p style="margin-top:0.5rem;color:#555;font-size:0.9rem;">
+                    La famille {L₀, L₁, …, Lₙ} forme une base de l'espace vectoriel ℝₙ[X].
+                </p>
+            </div>
+
+            <div class="calculation-step">
+                <h4>Exercice</h4>
+                <p>Soit f une fonction vérifiant le tableau suivant :</p>
+                <table class="points-table" style="margin:1rem 0;">
+                    <thead>
+                        <tr><th>xᵢ</th><th>x₀ = −1</th><th>x₁ = 0</th><th>x₂ = 1</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><strong>f(xᵢ)</strong></td><td>2</td><td>1</td><td>−1</td></tr>
+                    </tbody>
+                </table>
+                <ol style="padding-left:1.25rem;line-height:2;">
+                    <li>Justifier l'existence d'un unique polynôme P ∈ ℝ₂[X].</li>
+                    <li>Déterminer la base de Lagrange pour x₀, x₁, x₂.</li>
+                    <li>Déterminer l'expression du polynôme P.</li>
+                    <li>En déduire une approximation de f(0.5).</li>
+                </ol>
+            </div>
+
+            <div class="calculation-step">
+                <h4>Solution</h4>
+                <p><strong>1.</strong> x₀ ≠ x₁, x₁ ≠ x₂, x₀ ≠ x₂ → il existe un unique polynôme P ∈ ℝ₂[X].</p>
+                <br>
+                <p><strong>2. Base de Lagrange :</strong></p>
+                <div class="formula">L₀(x) = x(x−1) / 2</div>
+                <div class="formula">L₁(x) = (x+1)(x−1) / (−1) = −(x²−1)</div>
+                <div class="formula">L₂(x) = (x+1)x / 2</div>
+                <br>
+                <p><strong>3. Polynôme :</strong></p>
+                <div class="formula">
+                    P₂(x) = 2·L₀(x) + 1·L₁(x) + (−1)·L₂(x)<br>
+                    = 2·x(x−1)/2 − (x+1)(x−1) − (x+1)x/2<br>
+                    = −½x² − 3/2·x + 1
+                </div>
+                <br>
+                <p><strong>4. Approximation :</strong></p>
+                <div class="final-result">f(0.5) ≈ P₂(0.5) = −½(0.25) − 3/2(0.5) + 1 = 0.125</div>
+            </div>
+
+            <div class="calculation-step">
+                <h4>Inconvénient majeur</h4>
+                <p>
+                    Si on ajoute un nouveau point (xₙ₊₁, yₙ₊₁), il faut <strong>tout recalculer de zéro</strong>.
+                    Pₙ₊₁ ne peut pas être déduit facilement de Pₙ.<br><br>
+                    → Pour combler cette lacune, on utilise la <strong>méthode de Newton</strong>.
+                </p>
+            </div>
+
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block javascripts %}
+<script>
+// Fermer modals en cliquant dehors
+window.onclick = function(e) {
+    ['stepsModal','coursModal'].forEach(id => {
+        const m = document.getElementById(id);
+        if (m && e.target === m) m.style.display = 'none';
+    });
+};
+</script>
+
+{% if chartData is defined and chartData %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const ctx = document.getElementById('lagrangeChart').getContext('2d');
+    const pointsX = {{ chartData.points|map(p => p.x)|json_encode|raw }};
+    const pointsY = {{ chartData.points|map(p => p.y)|json_encode|raw }};
+    const curveX  = {{ chartData.labels|json_encode|raw }};
+    const curveY  = {{ chartData.data|json_encode|raw }};
+
+    new Chart(ctx, {
+        type: 'scatter',
+        data: {
+            datasets: [
+                {
+                    label: 'Polynôme P(x)',
+                    data: curveX.map((x,i) => ({ x, y: curveY[i] })),
+                    borderColor: '#5b4ee6',
+                    backgroundColor: 'rgba(91, 78, 230, 0.12)',
+                    borderWidth: 3,
+                    pointRadius: 0,
+                    showLine: true,
+                    fill: true,
+                    tension: 0.4
+                },
+                {
+                    label: "Points d'interpolation",
+                    data: pointsX.map((x,i) => ({ x: parseFloat(x), y: parseFloat(pointsY[i]) })),
+                    backgroundColor: '#7a67f2',
+                    borderColor: '#fff',
+                    borderWidth: 2,
+                    pointRadius: 8,
+                    pointHoverRadius: 10,
+                    showLine: false
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'top', labels: { usePointStyle: true, padding: 20 } },
+                tooltip: { callbacks: { label: c => `(${c.parsed.x.toFixed(2)}, ${c.parsed.y.toFixed(4)})` } }
+            },
+            scales: {
+                x: { type: 'linear', title: { display: true, text: 'x', font: { weight: 'bold' } }, grid: { color: 'rgba(0,0,0,0.1)' } },
+                y: { type: 'linear', title: { display: true, text: 'P(x)', font: { weight: 'bold' } }, grid: { color: 'rgba(0,0,0,0.1)' } }
+            }
+        }
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

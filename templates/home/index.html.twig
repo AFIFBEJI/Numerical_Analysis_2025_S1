@@ -1,0 +1,70 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Accueil - Interpolation Lab{% endblock %}
+
+{% block body %}
+<div class="container main-page">
+    <section class="hero-section">
+        <div class="page-header" style="margin-bottom: 3rem;">
+            <h1>Laboratoire d'Interpolation Mathématique</h1>
+            <p>Application pédagogique complète pour l'interpolation polynomiale, l'approximation de données et les cours associés.</p>
+        </div>
+    </section>
+
+    <section class="methods-section">
+        <h2>Méthodes Disponibles</h2>
+        <div class="methods-grid" style="margin-top: 2rem;">
+            <div class="method-card">
+                <h3>Interpolation de Lagrange</h3>
+                <p>Construction du polynôme interpolateur à partir des polynômes de base de Lagrange</p>
+                <a href="{{ path('app_lagrange') }}" class="btn-primary">Utiliser</a>
+            </div>
+
+            <div class="method-card">
+                <h3>Interpolation de Newton</h3>
+                <p>Méthode des différences divisées pour construire le polynôme interpolateur</p>
+                <a href="{{ path('app_newton') }}" class="btn-primary">Utiliser</a>
+            </div>
+
+            <div class="method-card">
+                <h3>Moindres Carrés</h3>
+                <p>Ajustement polynomial par régression pour l'approximation de données</p>
+                <a href="{{ path('app_least_squares') }}" class="btn-primary">Utiliser</a>
+            </div>
+
+            <div class="method-card">
+                <h3>Descente de Gradient</h3>
+                <p>Méthode d'optimisation itérative pour approximer des fonctions et minimiser l'erreur</p>
+                <a href="{{ path('app_gradient') }}" class="btn-primary">Utiliser</a>
+            </div>
+
+            <div class="method-card">
+                <h3>Cours & Exercices</h3>
+                <p>Accédez aux explications, démonstrations et exercices pour chaque méthode.</p>
+                <a href="{{ path('app_cours') }}" class="btn-primary">Voir les cours</a>
+            </div>
+        </div>
+    </section>
+
+    <section class="features-section">
+        <h2>Fonctionnalités</h2>
+        <div class="features-list" style="margin-top: 2rem;">
+            <div class="feature-item">
+                <img src="{{ asset('images/feature-visualisation.svg') }}" alt="Icône visualisation" class="feature-icon-img">
+                <h4>Visualisation graphique</h4>
+                <p>Affichage des points et courbes interpolées avec Chart.js</p>
+            </div>
+            <div class="feature-item">
+                <img src="{{ asset('images/feature-calcul.svg') }}" alt="Icône calcul automatique" class="feature-icon-img">
+                <h4>Calcul automatique</h4>
+                <p>Génération automatique des polynômes et coefficients</p>
+            </div>
+            <div class="feature-item">
+                <img src="{{ asset('images/feature-responsive.svg') }}" alt="Icône interface responsive" class="feature-icon-img">
+                <h4>Interface intuitive</h4>
+                <p>Expérience fluide sur ordinateur, tablette et mobile</p>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
